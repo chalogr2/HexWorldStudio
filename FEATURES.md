@@ -31,8 +31,8 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 
 - [ ] `WorldMap` — pure-data root container
 - [ ] `HexTile` — per-tile data (axial coords, elevation, temperature, moisture, biome, features, resource)
-- [ ] Axial / cube / offset coordinate utilities and conversions
-- [ ] Neighbor / range / line-of-sight queries
+- [x] Axial / cube / offset coordinate utilities and conversions
+- [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)
 - [ ] River network representation: edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes
 - [ ] JSON / binary serialization with a stable schema version
 
@@ -42,7 +42,7 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] `ResourceDefinition` SO (placement rules, rarity, biome compatibility)
 - [ ] `TileFeatureDefinition` SO (forests, hills, marshes — visual + gameplay tags)
 - [ ] `WorldPreset` SO (named bundles of generation settings — "Earth-like", "Archipelago", "Frozen", etc.)
-- [ ] Default content set: 8–12 biomes, 6–10 resources, core feature set
+- [ ] Default content set: full Civilization VII terrain / biome catalog as `BiomeDefinition` + `TileFeatureDefinition` SOs (per ADR-0007); buyer-authored biome SOs supported as a first-class extension path for fantasy / non-Earth maps
 
 ## Custom Editor
 
@@ -80,8 +80,8 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 
 ## Tests
 
-- [ ] EditMode tests for axial / cube / offset coordinate math
-- [ ] EditMode tests for neighbor / range / line queries
+- [x] EditMode tests for axial / cube / offset coordinate math
+- [x] EditMode tests for neighbor / range / line queries
 - [ ] EditMode tests for determinism (same seed + settings → identical `WorldMap`)
 - [ ] EditMode tests for biome classification edge cases
 - [ ] EditMode tests for river termination invariants (incl. navigable↔non-navigable transition rules)
