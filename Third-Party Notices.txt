@@ -1,0 +1,41 @@
+Third-Party Notices
+===================
+
+Hex World Studio includes content derived from the following third-party
+works. Each entry lists the original work, its author, its license, and the
+nature of any modifications made for inclusion in Hex World Studio.
+
+When adding a new third-party item to the repository, append a new entry
+to this file following the same template.
+
+----------------------------------------------------------------------
+
+1. Kenney Hexagon Kit
+   --------------------
+   Author:           Kenney (https://kenney.nl)
+   Original work:    Hexagon Kit
+   Original source:  https://kenney.nl/assets/hexagon-kit
+   License:          Creative Commons Zero v1.0 Universal (CC0 1.0)
+                     https://creativecommons.org/publicdomain/zero/1.0/
+   Modifications:    Selected hex tile and prop models have been modified
+                     and extended in Asset Forge for use in the Hex World
+                     Studio demo scenes. Modified models, along with any
+                     original Hex World Studio additions built alongside
+                     them, ship inside Assets/HexWorldStudio/ThirdParty/
+                     once authored.
+
+   Although CC0 imposes no attribution requirement, Hex World Studio
+   credits Kenney as a courtesy and to make provenance clear to anyone
+   reusing or auditing the assets.
+
+----------------------------------------------------------------------
+
+Template for future entries
+---------------------------
+
+N. <Work title>
+   Author:        <name and URL>
+   Original work: <title>
+   Original src:  <URL>
+   License:       <license name and URL>
+   Modifications: <describe modifications, or "None" if unmodified>

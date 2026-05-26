@@ -1,0 +1,21 @@
+LICENSE — Hex World Studio
+
+Copyright (c) 2026 Fernando González Ruiz. All rights reserved.
+
+The license under which Hex World Studio will be released has not yet been
+finalized. Likely candidates include:
+
+  - The Unity Asset Store EULA (for end-buyer distribution), or
+  - A permissive open-source license (MIT or Apache-2.0) for an open release,
+    if and when such a release is decided.
+
+Until a final license is chosen and replaces this file, all rights to the
+contents of this repository are reserved by the copyright holder. No
+permission is granted to copy, modify, distribute, or sublicense any part of
+this repository's original content.
+
+Third-party content bundled in this repository is licensed under its own
+terms; see "Third-Party Notices.txt" for attributions and license texts.
+
+This is a placeholder file. It will be replaced with the final license text
+before any public distribution.
