@@ -3,9 +3,7 @@
     "rootNamespace": "HexWorldStudio.Tests",
     "references": [
         "HexWorldStudio.Runtime",
-        "HexWorldStudio.Editor",
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "HexWorldStudio.Editor"
     ],
     "optionalUnityReferences": [
         "TestAssemblies"
