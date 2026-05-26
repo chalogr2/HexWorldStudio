@@ -21,6 +21,7 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] Climate model: moisture / precipitation based on prevailing winds + distance from water
 - [ ] Biome assignment from temperature/moisture/elevation lookup (Whittaker-style)
 - [ ] River generation along elevation gradients, terminating at oceans or lakes
+- [ ] Hydrology pass: decide navigable (tile) vs non-navigable (edge) river segments and transition points
 - [ ] Resource placement honoring biome rules and minimum-distance constraints
 - [ ] Starting-position selection (configurable player count, fairness/distance heuristics)
 - [ ] Map post-processing pass (smoothing, error correction, isolated-tile cleanup)
@@ -32,7 +33,7 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] `HexTile` — per-tile data (axial coords, elevation, temperature, moisture, biome, features, resource)
 - [ ] Axial / cube / offset coordinate utilities and conversions
 - [ ] Neighbor / range / line-of-sight queries
-- [ ] River network representation (edge-based, not tile-based)
+- [ ] River network representation: edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes
 - [ ] JSON / binary serialization with a stable schema version
 
 ## ScriptableObject content
@@ -64,7 +65,8 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 
 - [ ] URP demo renderer: instanced hex meshes per biome
 - [ ] Low-poly biome materials (URP shader graphs or simple lit shaders)
-- [ ] River mesh generation (low-poly ribbons along edges)
+- [ ] Non-navigable river ribbon meshes (along edges)
+- [ ] Navigable river tile geometry/material (per-tile)
 - [ ] Resource prop placement
 - [ ] Camera rig for demo scenes
 
@@ -82,7 +84,7 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] EditMode tests for neighbor / range / line queries
 - [ ] EditMode tests for determinism (same seed + settings → identical `WorldMap`)
 - [ ] EditMode tests for biome classification edge cases
-- [ ] EditMode tests for river termination invariants
+- [ ] EditMode tests for river termination invariants (incl. navigable↔non-navigable transition rules)
 - [ ] PlayMode tests for pipeline orchestrator cancellation and progress reporting
 
 ## Documentation (ships with package)
@@ -95,6 +97,9 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] Cookbook: add a custom biome
 - [ ] Cookbook: add a custom generation pass
 - [ ] API reference (generated from XML doc comments)
+- [ ] Concept doc: WorldMap mutability contract (what's safe to mutate, what isn't)
+- [ ] Concept doc: river representation (navigable vs non-navigable, transitions)
+- [ ] DocFX setup at release time for API reference generation
 - [ ] FAQ + troubleshooting
 
 ## Marketing Assets
