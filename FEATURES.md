@@ -48,7 +48,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [ ] Resource placement honoring biome rules and minimum-distance constraints
 - [ ] Starting-position selection (configurable player count, fairness/distance heuristics)
 - [ ] Map post-processing pass (smoothing, error correction, isolated-tile cleanup)
-- [ ] Single-pass pipeline orchestrator with cancellation support
+- [~] Single-pass pipeline orchestrator with cancellation support (orchestrator + `IGenerationStage` + `GenerationContext` landed in Slice 4; default pipeline currently empty, stages append per slice; cancellation / progress / async variant deferred to a later slice)
 
 ## Data Model
 
@@ -80,11 +80,11 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## Runtime API
 
-- [ ] `HexWorldGenerator.Generate(WorldGenerationSettings)` entry point
+- [x] `HexWorldGenerator.Generate(WorldGenerationSettings)` entry point (Slice 4; instance-based, settings validated at boundary, empty default pipeline pending stage slices)
 - [ ] Async / coroutine-friendly variant with progress callback
-- [ ] Public read-only access to `WorldMap` and `HexTile`
+- [~] Public read-only access to `WorldMap` and `HexTile` (public types with internal setters on per-tile mutable state, `TryGetTile` / `Normalize` / `Contains` / `IndexOf` on `WorldMap`; XML doc comments in place. Closes when content SO references and serialization land.)
 - [ ] Public events for pipeline stages (for buyers who want to hook in)
-- [ ] XML doc comments on every public type and member
+- [~] XML doc comments on every public type and member (in place on every public type shipped so far — `HexCoord`, `HexCoordExtensions`, `HexDirection`, `HexTile`, `TileLandState`, `WorldMap`, `WorldGenerationSettings`, `HexWorldGenerator`. Maintained as a hard rule per `CLAUDE.md`; flips to `[x]` when the v1 public surface is frozen.)
 
 ## Rendering / Visualization
 

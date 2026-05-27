@@ -87,7 +87,8 @@ Assembly definitions (`.asmdef`) for Runtime, Editor, Tests/Runtime, Tests/Edito
 - **Slice 1** (coordinate primitives): `HexCoord`, `HexCoordExtensions`, `HexDirection`.
 - **Slice 2** (deterministic RNG): `RngService` (PCG XSH-RR-64-32, splittable via `Fork()` and `Fork(label)`).
 - **Slice 3** (data model + cylindrical map): `HexTile`, `WorldMap`, `CoordinateSpace`. Horizontal wrap is enforced inside `WorldMap`; vertical axis is bounded. `TryGetTile` is the safe primary lookup.
-- Cumulative tests: ~132 EditMode cases, all green under headless Unity 6000.0.68f1.
+- **Slice 4** (public entry point + pipeline scaffolding): `WorldGenerationSettings`, `HexWorldGenerator`, internal `IGenerationStage` interface, internal `GenerationContext`. Default pipeline currently empty; stages append per slice. ADR-0010 (pluggable algorithms) and ADR-0011 (three-axis biome/feature/elevation-level tile model) recorded.
+- Cumulative tests: ~147 EditMode cases, all green under headless Unity 6000.0.68f1.
 - Next work is whatever sits at the top of `FEATURES.md` planning order; see `ARCHITECTURE.md` for the pipeline ordering and code-layout map.
 
 ## What to do at the start of a new session
