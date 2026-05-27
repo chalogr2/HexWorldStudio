@@ -29,8 +29,8 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 
 ## Data Model
 
-- [ ] `WorldMap` — pure-data root container
-- [ ] `HexTile` — per-tile data (axial coords, elevation, temperature, moisture, biome, features, resource)
+- [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API in; serialization, river network, biome/feature/resource refs pending)
+- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state in; biome / feature / resource refs pending content SOs)
 - [x] Axial / cube / offset coordinate utilities and conversions
 - [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)
 - [ ] River network representation: edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes
