@@ -49,6 +49,7 @@ Plus: XML doc comments on every public type and member from the moment it's crea
 ## Workflow rules
 
 - **Propose before implementing.** Output a design document and wait for confirmation before writing code. Same for major changes.
+- **Chain slices within a session.** Sessions are expected to span the rest of v1 development, not one slice per session (see ADR-0008). The propose-before-implementing gate is preserved per slice — each slice still gets a written proposal and an explicit approval before code lands — but completing one slice does not end the session. Move on to the next slice unless the user explicitly asks for a hard break.
 - **Small commits, Conventional Commits format** (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`). One logical change per commit. The git log should read like a changelog.
 - **No code without a place to put it.** Propose folder layout first.
 - **Stop and ask** on ambiguity, principle conflicts, or scope expansion.
@@ -77,10 +78,11 @@ Assembly definitions (`.asmdef`) for Runtime, Editor, Tests/Runtime, Tests/Edito
 
 ## Current project state
 
-- Unity project initialized at **6000.0.68f1** with URP 17.0.4 and Test Framework 1.6.0.
-- Git initialized on `main`.
-- Repository scaffolding (this commit set) is the first work in the project.
-- **No generator code, no editor code, no tests yet.** Next session is expected to begin implementation, starting with the `ARCHITECTURE.md` proposal already accepted in the previous session.
+- Unity project at **6000.0.68f1** with URP 17.0.4 and Test Framework 1.6.0.
+- Git on `main`, tracking `origin/main` at <https://github.com/chalogr2/Hex-Tile-World-Generator>.
+- Four assembly definitions in place: `HexWorldStudio.Runtime`, `HexWorldStudio.Editor`, `HexWorldStudio.Tests.Runtime`, `HexWorldStudio.Tests.Editor`.
+- Slice 1 (coordinate primitives) landed: `HexCoord`, `HexCoordExtensions`, `HexDirection`, and 35 EditMode test methods (65 NUnit cases via parameterization). All green under headless Unity.
+- Next work is whatever sits at the top of `FEATURES.md` planning order; see `ARCHITECTURE.md` for the pipeline ordering and code-layout map.
 
 ## What to do at the start of a new session
 
