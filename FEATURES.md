@@ -14,7 +14,7 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 
 ## Generation Pipeline
 
-- [ ] Deterministic seeded RNG service (same seed + settings → byte-identical output)
+- [x] Deterministic seeded RNG service (same seed + settings → byte-identical output)
 - [ ] Continent/landmass shape generation (configurable: Pangaea, archipelago, continents, custom)
 - [ ] Elevation field generation
 - [ ] Climate model: temperature based on latitude + elevation
