@@ -62,6 +62,34 @@ namespace HexWorldStudio.Tests
         }
 
         [Test]
+        public void Generate_LandRatioZeroOrLess_Throws()
+        {
+            var gen = new HexWorldGenerator();
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                gen.Generate(new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed, 0f)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                gen.Generate(new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed, -0.1f)));
+        }
+
+        [Test]
+        public void Generate_LandRatioOneOrMore_Throws()
+        {
+            var gen = new HexWorldGenerator();
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                gen.Generate(new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed, 1f)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                gen.Generate(new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed, 1.5f)));
+        }
+
+        [Test]
+        public void Generate_LandRatioNaN_Throws()
+        {
+            var gen = new HexWorldGenerator();
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                gen.Generate(new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed, float.NaN)));
+        }
+
+        [Test]
         public void Generate_ValidSettings_ReturnsNonNullMap()
         {
             var gen = new HexWorldGenerator();

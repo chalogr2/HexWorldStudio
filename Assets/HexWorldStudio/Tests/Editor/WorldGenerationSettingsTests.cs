@@ -6,7 +6,7 @@ namespace HexWorldStudio.Tests
     /// <summary>
     /// EditMode tests for <see cref="WorldGenerationSettings"/> —
     /// constructor stores values without validation, reference-type
-    /// semantics.
+    /// semantics, default LandRatio.
     /// </summary>
     public class WorldGenerationSettingsTests
     {
@@ -46,6 +46,30 @@ namespace HexWorldStudio.Tests
             var b = new WorldGenerationSettings(80, 50, 42UL);
             Assert.That(a.Equals(b), Is.False);
             Assert.That(ReferenceEquals(a, b), Is.False);
+        }
+
+        [Test]
+        public void Constructor_ThreeArg_DefaultsLandRatioToFortyPercent()
+        {
+            var s = new WorldGenerationSettings(80, 50, 0UL);
+            Assert.That(s.LandRatio, Is.EqualTo(WorldGenerationSettings.DefaultLandRatio));
+            Assert.That(s.LandRatio, Is.EqualTo(0.4f));
+        }
+
+        [Test]
+        public void Constructor_FourArg_StoresExplicitLandRatio()
+        {
+            var s = new WorldGenerationSettings(80, 50, 0UL, 0.65f);
+            Assert.That(s.LandRatio, Is.EqualTo(0.65f));
+        }
+
+        [Test]
+        public void Constructor_FourArg_AcceptsOutOfRangeLandRatio_WithoutThrowing()
+        {
+            // Validation happens at Generate(), same policy as width/height.
+            Assert.DoesNotThrow(() => new WorldGenerationSettings(80, 50, 0UL, -0.5f));
+            Assert.DoesNotThrow(() => new WorldGenerationSettings(80, 50, 0UL, 1.5f));
+            Assert.DoesNotThrow(() => new WorldGenerationSettings(80, 50, 0UL, float.NaN));
         }
     }
 }

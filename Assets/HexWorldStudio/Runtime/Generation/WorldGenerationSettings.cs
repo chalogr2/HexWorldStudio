@@ -34,6 +34,12 @@ namespace HexWorldStudio.Generation
     [Serializable]
     public sealed class WorldGenerationSettings
     {
+        /// <summary>
+        /// Default land ratio when the 3-argument constructor is used.
+        /// Roughly Civ-style: 40% land, 60% water.
+        /// </summary>
+        public const float DefaultLandRatio = 0.4f;
+
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
 
@@ -48,18 +54,46 @@ namespace HexWorldStudio.Generation
         public ulong Seed { get; }
 
         /// <summary>
-        /// Constructs a settings instance. Values are stored as-is;
-        /// validation happens when these settings are passed to
-        /// <see cref="HexWorldGenerator.Generate"/>.
+        /// Target proportion of land tiles in <c>(0, 1)</c>. The
+        /// default <c>ContinentShapeStage</c> uses a percentile-based
+        /// threshold so the resulting land ratio matches this value
+        /// to within one tile of the theoretical count.
+        /// </summary>
+        /// <remarks>
+        /// Validated at <see cref="HexWorldGenerator.Generate"/> rather
+        /// than here (intermediate invalid values are allowed during
+        /// inspector-driven configuration). Alternate continent
+        /// algorithms (per ADR-0010) may interpret this field
+        /// differently or ignore it.
+        /// </remarks>
+        public float LandRatio { get; }
+
+        /// <summary>
+        /// Constructs a settings instance with the default
+        /// <see cref="LandRatio"/> of <see cref="DefaultLandRatio"/>.
+        /// </summary>
+        public WorldGenerationSettings(int width, int height, ulong seed)
+            : this(width, height, seed, DefaultLandRatio)
+        {
+        }
+
+        /// <summary>
+        /// Constructs a settings instance with an explicit
+        /// <paramref name="landRatio"/>.
         /// </summary>
         /// <param name="width">Number of columns. Must be positive at generation time.</param>
         /// <param name="height">Number of rows. Must be positive at generation time.</param>
         /// <param name="seed">The 64-bit RNG seed.</param>
-        public WorldGenerationSettings(int width, int height, ulong seed)
+        /// <param name="landRatio">
+        /// Target proportion of land tiles. Must be strictly between
+        /// 0 and 1 at generation time.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio)
         {
             Width = width;
             Height = height;
             Seed = seed;
+            LandRatio = landRatio;
         }
     }
 }

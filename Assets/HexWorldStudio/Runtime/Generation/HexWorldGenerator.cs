@@ -86,6 +86,13 @@ namespace HexWorldStudio.Generation
                     settings.Height,
                     $"settings.Height must be positive (got {settings.Height}).");
             }
+            if (!(settings.LandRatio > 0f) || !(settings.LandRatio < 1f) || float.IsNaN(settings.LandRatio))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(settings),
+                    settings.LandRatio,
+                    $"settings.LandRatio must be strictly between 0 and 1 (got {settings.LandRatio}).");
+            }
 
             var map = new WorldMap(settings.Width, settings.Height, settings.Seed);
             var rng = new RngService(settings.Seed);
