@@ -102,6 +102,10 @@ WorldMap (caller is free to mutate; see "Data model contract")
 
 Stages are internal types implementing a small `IGenerationStage` interface. The orchestrator is the only thing that knows the stage order. Buyers do **not** reorder stages in v1 — that's a planned v1.1 extensibility surface.
 
+**Each stage role is pluggable** (ADR-0010): multiple alternative implementations of `IGenerationStage` can be authored for the same role (e.g., continent shaping has at least Pure Perlin Threshold, Continents, Pangaea, Archipelago, Fractal, Inland Sea, Island Plates, Lakes, Highlands, etc. all implementing the same interface). The active implementation per slot is selected by `WorldGenerationSettings` initially and by `WorldPreset` ScriptableObjects later. v1 ships one default implementation per slot; additional Civ-style algorithms are tracked in `FEATURES.md` under "Map type algorithms" and land in dedicated slices.
+
+**Per-tile classification is three-axis** (ADR-0011): `Biome` (climate band, from a `BiomeDefinition` SO), `TileFeature` (terrain detail, from a `TileFeatureDefinition` SO chosen from the biome's allow-list), and `ElevationLevel` (discrete int derived from the continuous `Elevation` field via a quantization + smoothing pass that produces contiguous plateaus). The discrete level supports the default Civ-style "move ±1 elevation level" traversal rule for buyer gameplay code.
+
 ## Request-to-render flow
 
 1. User opens the **Hex World Generator** editor window.

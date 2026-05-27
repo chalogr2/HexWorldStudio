@@ -194,3 +194,72 @@ Cylindrical wrap is the Civ-style default and meets the brief's mental model. Co
 
 **API shape (immediate consequences):**
 The lookup API is `bool TryGetTile(HexCoord coord, out HexTile tile)`, not `HexTile GetTile(HexCoord coord)`. The latter would either return `null` (footgun) or throw (heavy for routine boundary checks); neither matches the cylindrical model's actual semantics (R out of bounds is a normal query outcome, not an error). Buyers always pair `TryGetTile` with a bool check; no nulls leak out of the data layer.
+
+---
+
+## ADR-0010 — Generation algorithms are pluggable; each pipeline-stage role accepts any `IGenerationStage` implementation
+
+**Date:** 2026-05-27
+**Status:** Accepted
+
+**Decision:**
+Every pipeline stage role (continent shape, elevation field, climate, biome assignment, hydrology, resource placement, starting positions, post-process) is filled by an implementation of `IGenerationStage`. Multiple alternative implementations can exist for the same role and are selected at generation time via `WorldGenerationSettings` (initially) and `WorldPreset` ScriptableObjects (later). The intent is to ship the full set of Civilization-style map-generation algorithms over time — at minimum the canonical map types (Continents, Continents Plus, Pangaea, Archipelago, Fractal, Inland Sea, Island Plates, Lakes, Highlands, Small Continents, and any others present in base Civ VII) — without rearchitecting.
+
+**Alternatives considered:**
+
+- *Hardcode one algorithm per stage.* Rejected. Civ-likes are built on diverse map types; locking in one shape per stage forces every buyer to fork our code or ship without the algorithm they actually want.
+- *Heavy plugin architecture with discovery / dependency-injection / service-locator.* Rejected for v1. Violates the "no magic" principle in `CLAUDE.md`. The pluggable model is just an interface and an array — no reflection, no service locator, no runtime discovery.
+- *Public extensibility from day one (buyers register their own `IGenerationStage`s).* Deferred. The interface is `internal` for v1; a formal buyer-extension API is a v1.1 candidate. Internal pluggability does not require public-API stability yet.
+
+**Reasoning:**
+The pipeline already uses `IGenerationStage` as an internal interface (Slice 4). Treating each stage role as a slot that accepts any implementation costs nothing extra in v1 (we ship one default per slot) and gives a clean path to add Civ-style algorithm variants over time. Buyer-side extensibility can be opened up later without breaking earlier slices.
+
+**Implementation note:**
+- Slice 4 ships an empty default pipeline (zero stages).
+- Slice 5 introduces the first two slots (continent shape, elevation field) each with one default implementation (pure Perlin threshold; Perlin elevation).
+- Additional Civ-style algorithms per slot land in dedicated slices as they're prioritized, each registered alongside the default in `HexWorldGenerator`'s pipeline list.
+- The exact Civ-style algorithm catalog is tracked in `FEATURES.md` under "Map type algorithms". The list is verified against the live Civilization VII at the time each algorithm is actually authored (same pattern as ADR-0007's biome enumeration commitment).
+
+---
+
+## ADR-0011 — Per-tile classification: three-axis Biome / TileFeature / ElevationLevel model
+
+**Date:** 2026-05-27
+**Status:** Accepted
+
+**Decision:**
+Per-tile classification uses three orthogonal axes:
+
+1. **Biome** — climate band, defined by `BiomeDefinition` SO. The v1 starter set is **Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow** (7 biomes). Mediterranean ships as a later content drop. Biomes are assigned by `BiomeAssignmentStage` from temperature + moisture + land/water classification.
+2. **TileFeature** — terrain detail within a biome, defined by `TileFeatureDefinition` SO. Features fall into three rough families: flat-terrain variants (`Grassland`, `Savannah`, `Desert`, `Snowfield`), vegetation (`Forest`, and likely `Jungle` / `Rainforest` for Tropical), and elevation-shape modifiers (`Hill`, `Mountain`, `Rocky`). Each `BiomeDefinition` lists which `TileFeatureDefinition`s are legal for it. Ocean and Coast biomes have no features.
+3. **ElevationLevel** — discrete gameplay-facing integer step on `HexTile`. Values `0..N` (default `N = 5`). Derived from the continuous `Elevation` float by quantizing into bands with a smoothing pass that produces contiguous plateaus rather than per-tile noise. The default unit traversal rule is "move only to a tile within ±1 elevation level"; buyer gameplay code may override.
+
+Per-biome feature allow-list as recorded by the user:
+
+| Biome | Features |
+|---|---|
+| Ocean | (none) |
+| Coast | (none) |
+| Temperate | Grassland, Forest, Hill, Mountain, Rocky |
+| Arid | Savannah, Desert, Hill, Mountain, Rocky |
+| Tropical | Grassland, Forest, Hill, Mountain, Rocky (Jungle / Rainforest under consideration for Slice 6) |
+| Tundra | Grassland, Forest, Hill, Mountain, Rocky |
+| Snow | Snowfield, Forest, Hill, Mountain, Rocky |
+
+Note: `Savannah` is the Arid-biome equivalent of `Grassland` and may be modelled as a renamed flag on the same shared `TileFeatureDefinition` archetype. The exact authoring shape lands when SOs land in Slice 6.
+
+**Alternatives considered:**
+
+- *Single `Biome` axis covering everything (Civ-V-style enum: Grassland, Plains, Desert, Tundra, Snow, Coast, Ocean, Mountain, Hill).* Rejected. Forces "Grassland-in-Tundra" and similar combinations to live in code rather than in content data, and loses the user's deliberate flat-vs-vegetated-vs-modifier distinction.
+- *Two axes (Biome + Feature) without discrete elevation levels.* Considered. Continuous-only elevation is simpler but breaks the ±1 traversal rule: tiny continuous gaps between neighbours produce arbitrary movement blockers. Discrete levels make the traversal rule readable, configurable, and easy to communicate to buyer gameplay code.
+- *Pre-bake elevation level into Biome (Mountain biome, Hill biome).* Rejected. Confounds climate with terrain shape — a Mountain-Tundra differs gameplay-wise from a Mountain-Tropical and should stay distinguishable.
+
+**Reasoning:**
+The user's Civ-style mental model naturally separates climate (Temperate, Arid, etc.) from terrain detail (Forest, Hill) from elevation gameplay rules. Encoding each axis separately keeps the distinctions clean, matches the buyer's vocabulary, and produces a content surface that is straightforward to author. Discrete elevation levels give a clean traversal contract and let Perlin-based generation explicitly target plateau-shaped terrain rather than fighting against the smoothness of raw noise.
+
+**Implementation note:**
+- The continuous `float Elevation` (in `[0, 1]`) is the rendering-friendly value and already exists on `HexTile` from Slice 3.
+- The discrete `int ElevationLevel` field is added to `HexTile` in Slice 5 or 6 (when the elevation stage is authored) — choice of slice depends on whether the discretization stage is bundled with the noise pass or split into its own. Tracked in `FEATURES.md`.
+- `ContinentShapeStage` (Slice 5) operates on raw noise + threshold and writes `LandState`; the discretization / smoothing pass for `ElevationLevel` is a separate stage that runs after `ElevationFieldStage`.
+- `BiomeDefinition` SO authoring (Slice 6) carries an allow-list of `TileFeatureDefinition`s, and the feature-placement stage respects it.
+- Per ADR-0007, the precise enumeration of biomes and features is verified against live Civilization VII at the time SOs are authored; this ADR commits the v1 starter set to what the user specified.

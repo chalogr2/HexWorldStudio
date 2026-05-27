@@ -12,10 +12,33 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 
 ---
 
+## Map type algorithms (per ADR-0010 — pluggable per stage)
+
+Each pipeline-stage role accepts any `IGenerationStage` implementation. The Civ-flavored algorithms below are tracked as separate planned implementations of the appropriate stage. The exact final list will be verified against base Civilization VII when each algorithm is authored (same pattern as ADR-0007's biome enumeration commitment).
+
+Continent-shape algorithms:
+
+- [ ] Pure Perlin threshold (Slice 5 baseline / default)
+- [ ] Continents
+- [ ] Continents Plus
+- [ ] Pangaea
+- [ ] Archipelago
+- [ ] Fractal
+- [ ] Inland Sea
+- [ ] Island Plates
+- [ ] Lakes
+- [ ] Highlands
+- [ ] Small Continents
+- [ ] Mirror
+- [ ] Shuffle / random pick from the above
+- [ ] Custom buyer-supplied `IGenerationStage` (formal extension API is v1.1 candidate)
+
+Elevation, climate, hydrology, biome, and resource stages each get the same "pluggable per slot" treatment; additional implementations beyond the default are appended here as they are authored.
+
 ## Generation Pipeline
 
 - [x] Deterministic seeded RNG service (same seed + settings → byte-identical output)
-- [ ] Continent/landmass shape generation (configurable: Pangaea, archipelago, continents, custom)
+- [ ] Continent/landmass shape generation (configurable algorithm — see "Map type algorithms")
 - [ ] Elevation field generation
 - [ ] Climate model: temperature based on latitude + elevation
 - [ ] Climate model: moisture / precipitation based on prevailing winds + distance from water
@@ -30,7 +53,8 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 ## Data Model
 
 - [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API in; serialization, river network, biome/feature/resource refs pending)
-- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state in; biome / feature / resource refs pending content SOs)
+- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state in; biome / feature / resource refs and discrete `ElevationLevel` pending content SOs and the elevation-discretization stage)
+- [ ] Discrete `ElevationLevel` field on `HexTile` (int, 0..N) plus the quantization / smoothing stage that derives it from the continuous `Elevation` field while preserving contiguous plateaus (per ADR-0011)
 - [x] Axial / cube / offset coordinate utilities and conversions
 - [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)
 - [ ] River network representation: edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes
@@ -42,7 +66,8 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] `ResourceDefinition` SO (placement rules, rarity, biome compatibility)
 - [ ] `TileFeatureDefinition` SO (forests, hills, marshes — visual + gameplay tags)
 - [ ] `WorldPreset` SO (named bundles of generation settings — "Earth-like", "Archipelago", "Frozen", etc.)
-- [ ] Default content set: full Civilization VII terrain / biome catalog as `BiomeDefinition` + `TileFeatureDefinition` SOs (per ADR-0007); buyer-authored biome SOs supported as a first-class extension path for fantasy / non-Earth maps
+- [ ] Default content set v1 — starter biomes per ADR-0011: **Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow** (7 biomes). Mediterranean added in a later content drop. Full Civilization VII terrain / biome catalog remains the parity target per ADR-0007.
+- [ ] Default tile-feature set v1 per ADR-0011: Grassland, Savannah, Desert, Snowfield, Forest, Hill, Mountain, Rocky. Per-biome allow-lists drawn from ADR-0011's table. Jungle / Rainforest under consideration for Tropical and pending Slice 6 design.
 
 ## Custom Editor
 
@@ -111,9 +136,18 @@ Every feature, planned or implemented, lives here. **Add a feature here before w
 - [ ] Demo video (60–90s)
 - [ ] Asset Store landing-page mock for internal review
 
+## Performance & scaling
+
+- [ ] Per-biome instanced rendering (one draw call per biome batch) — required before maps grow past ~50×40 tiles
+- [ ] Chunked rendering (group tiles into ~32×32 chunks, build one combined mesh per chunk) — deferred; current demo strategy is one GameObject per tile, which is fine for demo maps up to ~30×30 but will not scale to v1 target sizes. Revisit when a 200×200 demo is actually authored.
+- [ ] GPU instancing path via `Graphics.DrawMeshInstanced` for biome props (forest trees, mountain peaks, resource models)
+- [ ] Generator performance budget: sub-2-second `Generate()` for 100×60 maps on a baseline desktop (target, not yet measured)
+
 ## Stretch — v1.1
 
 - [ ] Mobile platform support (iOS/Android performance pass)
 - [ ] WebGL platform support
 - [ ] Built-in render pipeline shipping templates
 - [ ] HDRP demo (separate package or upgrade path)
+- [ ] Unity new Input System alternative input layer (mirroring the legacy-Input-based demo controls from Slice 8)
+- [ ] Public extension API for buyer-authored `IGenerationStage`s (per ADR-0010)

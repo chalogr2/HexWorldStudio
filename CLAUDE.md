@@ -38,11 +38,14 @@ A **procedural hex world generator for Unity** — a code-first asset that gener
 
 ## Documentation discipline (mandatory)
 
-Three files in the repo root, maintained in lockstep with the code:
+Four files in the repo root, maintained in lockstep with the code:
 
 - [`CLAUDE.md`](CLAUDE.md) — this file. Update whenever project state meaningfully changes.
 - [`FEATURES.md`](FEATURES.md) — living inventory. **Add features here before implementing them.** Status legend: `[ ] planned`, `[~] in progress`, `[x] done`, `[!] blocked`, `[-] descoped`.
 - [`DECISIONS.md`](DECISIONS.md) — architectural decision log. Add an entry whenever a meaningful choice is made (date, decision, alternatives, reasoning).
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — subsystem layout, pipeline order, code-layout map. Update whenever a subsystem's shape or contract changes.
+
+**Hard rule: docs update in the same commit set as the work that triggered them.** If a prompt or exchange produces code, an ADR-worthy decision, a workflow change, or a clarification that future sessions will need to know about, the relevant docs are updated in the same set of commits as the code. No "I'll update docs later" — later is now. This applies equally to ADR additions, FEATURES status flips, ARCHITECTURE notes, and CLAUDE.md project-state refreshes.
 
 Plus: XML doc comments on every public type and member from the moment it's created.
 
@@ -80,8 +83,11 @@ Assembly definitions (`.asmdef`) for Runtime, Editor, Tests/Runtime, Tests/Edito
 
 - Unity project at **6000.0.68f1** with URP 17.0.4 and Test Framework 1.6.0.
 - Git on `main`, tracking `origin/main` at <https://github.com/chalogr2/Hex-Tile-World-Generator>.
-- Four assembly definitions in place: `HexWorldStudio.Runtime`, `HexWorldStudio.Editor`, `HexWorldStudio.Tests.Runtime`, `HexWorldStudio.Tests.Editor`.
-- Slice 1 (coordinate primitives) landed: `HexCoord`, `HexCoordExtensions`, `HexDirection`, and 35 EditMode test methods (65 NUnit cases via parameterization). All green under headless Unity.
+- Four assembly definitions in place: `HexWorldStudio.Runtime`, `HexWorldStudio.Editor`, `HexWorldStudio.Tests.Runtime`, `HexWorldStudio.Tests.Editor`. Runtime assembly grants `InternalsVisibleTo` to both test assemblies.
+- **Slice 1** (coordinate primitives): `HexCoord`, `HexCoordExtensions`, `HexDirection`.
+- **Slice 2** (deterministic RNG): `RngService` (PCG XSH-RR-64-32, splittable via `Fork()` and `Fork(label)`).
+- **Slice 3** (data model + cylindrical map): `HexTile`, `WorldMap`, `CoordinateSpace`. Horizontal wrap is enforced inside `WorldMap`; vertical axis is bounded. `TryGetTile` is the safe primary lookup.
+- Cumulative tests: ~132 EditMode cases, all green under headless Unity 6000.0.68f1.
 - Next work is whatever sits at the top of `FEATURES.md` planning order; see `ARCHITECTURE.md` for the pipeline ordering and code-layout map.
 
 ## What to do at the start of a new session
