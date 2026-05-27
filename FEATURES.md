@@ -18,7 +18,7 @@ Each pipeline-stage role accepts any `IGenerationStage` implementation. The Civ-
 
 Continent-shape algorithms:
 
-- [ ] Pure Perlin threshold (Slice 5 baseline / default)
+- [x] Pure Perlin percentile-threshold (Slice 5 baseline / default)
 - [ ] Continents
 - [ ] Continents Plus
 - [ ] Pangaea
@@ -38,8 +38,8 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 ## Generation Pipeline
 
 - [x] Deterministic seeded RNG service (same seed + settings → byte-identical output)
-- [ ] Continent/landmass shape generation (configurable algorithm — see "Map type algorithms")
-- [ ] Elevation field generation
+- [~] Continent/landmass shape generation — pure Perlin percentile-threshold baseline shipped in Slice 5 (honors `WorldGenerationSettings.LandRatio` to within one tile); Civ-style algorithm variants tracked in "Map type algorithms" still pending
+- [x] Elevation field generation — fBm Perlin, cylindrical, normalized to [0, 1] (Slice 5)
 - [ ] Climate model: temperature based on latitude + elevation
 - [ ] Climate model: moisture / precipitation based on prevailing winds + distance from water
 - [ ] Biome assignment from temperature/moisture/elevation lookup (Whittaker-style)
@@ -54,7 +54,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 - [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API in; serialization, river network, biome/feature/resource refs pending)
 - [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state in; biome / feature / resource refs and discrete `ElevationLevel` pending content SOs and the elevation-discretization stage)
-- [ ] Discrete `ElevationLevel` field on `HexTile` (int, 0..N) plus the quantization / smoothing stage that derives it from the continuous `Elevation` field while preserving contiguous plateaus (per ADR-0011)
+- [x] Discrete `ElevationLevel` field on `HexTile` (int, 0..N-1) plus the `ElevationLevelQuantizationStage` that derives it from the continuous `Elevation` field with median-smoothing over the wrap-aware 6-neighborhood (Slice 5; default `N = 6`, per-map configurability lands with `WorldPreset` content)
 - [x] Axial / cube / offset coordinate utilities and conversions
 - [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)
 - [ ] River network representation: edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes

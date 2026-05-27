@@ -87,8 +87,9 @@ Assembly definitions (`.asmdef`) for Runtime, Editor, Tests/Runtime, Tests/Edito
 - **Slice 1** (coordinate primitives): `HexCoord`, `HexCoordExtensions`, `HexDirection`.
 - **Slice 2** (deterministic RNG): `RngService` (PCG XSH-RR-64-32, splittable via `Fork()` and `Fork(label)`).
 - **Slice 3** (data model + cylindrical map): `HexTile`, `WorldMap`, `CoordinateSpace`. Horizontal wrap is enforced inside `WorldMap`; vertical axis is bounded. `TryGetTile` is the safe primary lookup.
-- **Slice 4** (public entry point + pipeline scaffolding): `WorldGenerationSettings`, `HexWorldGenerator`, internal `IGenerationStage` interface, internal `GenerationContext`. Default pipeline currently empty; stages append per slice. ADR-0010 (pluggable algorithms) and ADR-0011 (three-axis biome/feature/elevation-level tile model) recorded.
-- Cumulative tests: ~147 EditMode cases, all green under headless Unity 6000.0.68f1.
+- **Slice 4** (public entry point + pipeline scaffolding): `WorldGenerationSettings`, `HexWorldGenerator`, internal `IGenerationStage` interface, internal `GenerationContext`. Default pipeline initially empty. ADR-0010 (pluggable algorithms) and ADR-0011 (three-axis biome/feature/elevation-level tile model) recorded.
+- **Slice 5** (first real stages): `Perlin` noise source (2D + 3D + cylindrical-friendly fBm), `ContinentShapeStage` (percentile-threshold algorithm honoring `WorldGenerationSettings.LandRatio`), `ElevationFieldStage` (fBm Perlin normalized to [0, 1]), `ElevationLevelQuantizationStage` (default N=6 levels + median-smoothing pass). `HexTile.ElevationLevel` field added (-1 sentinel). `HexWorldGenerator`'s default pipeline now wires these three stages. Generation is now meaningfully different per seed.
+- Cumulative tests: ~197 EditMode cases, all green under headless Unity 6000.0.68f1.
 - Next work is whatever sits at the top of `FEATURES.md` planning order; see `ARCHITECTURE.md` for the pipeline ordering and code-layout map.
 
 ## What to do at the start of a new session
