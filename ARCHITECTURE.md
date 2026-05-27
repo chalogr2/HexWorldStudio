@@ -124,6 +124,14 @@ The `WorldMap` returned from `Generate` is a normal mutable class. **We do not t
 
 This contract is enforced by documentation and `<remarks>` blocks in XML comments, **not** by readonly facades or runtime guards. Rationale and trade-offs are in ADR-0005.
 
+## Map topology (cylindrical)
+
+Maps are rectangular (`Width × Height` tiles) and cylindrical: the horizontal axis wraps so column `Width - 1` connects to column `0`, while the vertical axis is bounded (the top and bottom rows are hard edges representing the world's poles). Matches the Civilization convention. Rationale and trade-offs are in ADR-0009.
+
+Wrap is enforced inside `WorldMap`. The safe lookup API is `bool TryGetTile(HexCoord, out HexTile)` — it returns `false` (without throwing and without leaking null) for R outside `[0, Height)`, and otherwise wraps Q into the canonical range and returns the resolved tile. `WorldMap.Normalize(HexCoord)` exposes the Q-wrap operation directly so buyer code can canonicalize coords before equality comparisons, dictionary keys, or external indexing.
+
+`HexCoord` itself is topology-unaware: coordinate math and wrap are separate concerns. Neighbor queries via `HexCoordExtensions.Neighbor` continue to return raw axial coords; wrap kicks in only when those coords are passed to a `WorldMap` lookup. A coord and its normalized equivalent will compare unequal under `==`; if you need "same tile" semantics across the seam, compare normalized coords or compare `HexTile` references.
+
 ## River representation (dual)
 
 Rivers are represented in two complementary ways within a single `RiverNetwork`:
