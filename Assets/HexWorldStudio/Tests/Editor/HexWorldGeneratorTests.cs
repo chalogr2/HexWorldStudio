@@ -155,5 +155,71 @@ namespace HexWorldStudio.Tests
             Assert.That(a.Height, Is.EqualTo(b.Height));
             Assert.That(a.Seed, Is.EqualTo(b.Seed));
         }
+
+        [Test]
+        public void Generate_DefaultPipeline_PopulatesAllPerTileFields()
+        {
+            var gen = new HexWorldGenerator();
+            WorldMap map = gen.Generate(new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed));
+
+            foreach (HexTile tile in map.Tiles)
+            {
+                Assert.That(tile.LandState, Is.Not.EqualTo(TileLandState.Unset),
+                    $"Tile {tile.TileIndex}: LandState remains Unset.");
+                Assert.That(float.IsNaN(tile.Elevation), Is.False,
+                    $"Tile {tile.TileIndex}: Elevation remains NaN.");
+                Assert.That(tile.Elevation, Is.InRange(0f, 1f));
+                Assert.That(tile.ElevationLevel, Is.GreaterThanOrEqualTo(0),
+                    $"Tile {tile.TileIndex}: ElevationLevel still -1.");
+                Assert.That(tile.ElevationLevel, Is.LessThan(6),
+                    $"Tile {tile.TileIndex}: ElevationLevel {tile.ElevationLevel} exceeds default level count.");
+            }
+        }
+
+        [Test]
+        public void Generate_SameSeedTwice_ProducesByteIdenticalMaps_PerTile()
+        {
+            // The real per-tile determinism gate. Same settings must
+            // produce identical LandState, Elevation, and ElevationLevel
+            // on every single tile.
+            var settings = new WorldGenerationSettings(SampleWidth, SampleHeight, SampleSeed);
+
+            WorldMap a = new HexWorldGenerator().Generate(settings);
+            WorldMap b = new HexWorldGenerator().Generate(settings);
+
+            Assert.That(a.Tiles.Count, Is.EqualTo(b.Tiles.Count));
+            for (int i = 0; i < a.Tiles.Count; i++)
+            {
+                HexTile ta = a.Tiles[i];
+                HexTile tb = b.Tiles[i];
+                Assert.That(ta.LandState, Is.EqualTo(tb.LandState),
+                    $"Tile {i}: LandState mismatch.");
+                Assert.That(ta.Elevation, Is.EqualTo(tb.Elevation),
+                    $"Tile {i}: Elevation mismatch.");
+                Assert.That(ta.ElevationLevel, Is.EqualTo(tb.ElevationLevel),
+                    $"Tile {i}: ElevationLevel mismatch.");
+            }
+        }
+
+        [Test]
+        public void Generate_DifferentSeeds_ProduceDifferentMaps()
+        {
+            var s1 = new WorldGenerationSettings(SampleWidth, SampleHeight, 1UL);
+            var s2 = new WorldGenerationSettings(SampleWidth, SampleHeight, 2UL);
+            WorldMap a = new HexWorldGenerator().Generate(s1);
+            WorldMap b = new HexWorldGenerator().Generate(s2);
+
+            int landDiffs = 0;
+            int elevationDiffs = 0;
+            for (int i = 0; i < a.Tiles.Count; i++)
+            {
+                if (a.Tiles[i].LandState != b.Tiles[i].LandState) landDiffs++;
+                if (a.Tiles[i].Elevation != b.Tiles[i].Elevation) elevationDiffs++;
+            }
+            Assert.That(landDiffs, Is.GreaterThan(0),
+                "Two different seeds produced identical land masks.");
+            Assert.That(elevationDiffs, Is.GreaterThan(0),
+                "Two different seeds produced identical elevation fields.");
+        }
     }
 }

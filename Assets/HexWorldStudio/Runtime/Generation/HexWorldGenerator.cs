@@ -1,6 +1,7 @@
 using System;
 using HexWorldStudio.Data;
 using HexWorldStudio.Generation.Pipeline;
+using HexWorldStudio.Generation.Pipeline.Stages;
 using HexWorldStudio.Generation.Rng;
 
 namespace HexWorldStudio.Generation
@@ -45,7 +46,21 @@ namespace HexWorldStudio.Generation
         /// </summary>
         public HexWorldGenerator()
         {
-            _stages = Array.Empty<IGenerationStage>();
+            _stages = BuildDefaultPipeline();
+        }
+
+        // The v1 default pipeline. Stages append here as later slices
+        // introduce them (climate, biome assignment, hydrology, etc.).
+        // Alternative pipelines (per WorldPreset SO content) come later
+        // per ADR-0010.
+        private static IGenerationStage[] BuildDefaultPipeline()
+        {
+            return new IGenerationStage[]
+            {
+                new ContinentShapeStage(),
+                new ElevationFieldStage(),
+                new ElevationLevelQuantizationStage(),
+            };
         }
 
         /// <summary>

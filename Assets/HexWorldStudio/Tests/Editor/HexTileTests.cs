@@ -80,5 +80,20 @@ namespace HexWorldStudio.Tests
             tile.LandState = TileLandState.Water;
             Assert.That(tile.LandState, Is.EqualTo(TileLandState.Water));
         }
+
+        [Test]
+        public void ElevationLevel_DefaultIsMinusOneSentinel()
+        {
+            var tile = new HexTile(HexCoord.Zero, 0);
+            Assert.That(tile.ElevationLevel, Is.EqualTo(-1));
+        }
+
+        [Test]
+        public void ElevationLevel_CanBeSetViaInternalSetter()
+        {
+            var tile = new HexTile(HexCoord.Zero, 0);
+            tile.ElevationLevel = 3;
+            Assert.That(tile.ElevationLevel, Is.EqualTo(3));
+        }
     }
 }

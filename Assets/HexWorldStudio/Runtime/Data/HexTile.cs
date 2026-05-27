@@ -95,6 +95,23 @@ namespace HexWorldStudio.Data
         public TileLandState LandState { get; internal set; } = TileLandState.Unset;
 
         /// <summary>
+        /// Discrete elevation step used by gameplay traversal rules
+        /// (default: a unit can move only to a tile within ±1 of its
+        /// current <see cref="ElevationLevel"/>; buyer code may
+        /// override). Set by the elevation-level quantization stage
+        /// after the continuous <see cref="Elevation"/> field is
+        /// populated.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <c>-1</c> (unset sentinel) — matches the NaN
+        /// convention on float fields so any read before the
+        /// quantization stage has run is immediately recognizable. The
+        /// valid range after generation is <c>[0, N-1]</c> where N is
+        /// the per-map elevation-level count (default 6).
+        /// </remarks>
+        public int ElevationLevel { get; internal set; } = -1;
+
+        /// <summary>
         /// Constructs a tile bound to a specific coordinate and index.
         /// Called by <c>WorldMap</c> during construction; not used by
         /// buyers directly.
