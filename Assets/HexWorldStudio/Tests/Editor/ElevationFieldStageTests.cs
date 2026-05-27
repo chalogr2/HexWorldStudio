@@ -110,8 +110,11 @@ namespace HexWorldStudio.Tests
                 if (tile.Elevation < min) min = tile.Elevation;
                 if (tile.Elevation > max) max = tile.Elevation;
             }
-            Assert.That(min, Is.EqualTo(0f));
-            Assert.That(max, Is.EqualTo(1f));
+            // Remap is `(v - srcMin) / (srcMax - srcMin)` which is
+            // mathematically 0 and 1 at the source extremes but can
+            // land one IEEE ULP off due to float division precision.
+            Assert.That(min, Is.EqualTo(0f).Within(1e-5f));
+            Assert.That(max, Is.EqualTo(1f).Within(1e-5f));
         }
 
         [Test]
