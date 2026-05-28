@@ -40,9 +40,9 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [x] Deterministic seeded RNG service (same seed + settings → byte-identical output)
 - [~] Continent/landmass shape generation — pure Perlin percentile-threshold baseline shipped in Slice 5 (honors `WorldGenerationSettings.LandRatio` to within one tile); Civ-style algorithm variants tracked in "Map type algorithms" still pending
 - [x] Elevation field generation — fBm Perlin, cylindrical, normalized to [0, 1] (Slice 5)
-- [ ] Climate model: temperature based on latitude + elevation
-- [ ] Climate model: moisture / precipitation based on prevailing winds + distance from water
-- [ ] Biome assignment from temperature/moisture/elevation lookup (Whittaker-style)
+- [x] Climate model: temperature based on latitude + elevation (Slice 6; lapse rate + Perlin perturbation; latitude-banded variants per ADR-0010 still pending)
+- [x] Climate model: moisture / precipitation based on prevailing winds (Slice 6 per ADR-0012; east-to-west wind transport with orographic precipitation and rain shadow; latitude-banded wind variants per ADR-0010 still pending)
+- [~] Biome assignment from temperature/moisture lookup (Slice 6 envelope-based first-match-wins assignment shipped; richer Whittaker-style or weighted variants per ADR-0010 still pending)
 - [ ] River generation along elevation gradients, terminating at oceans or lakes
 - [ ] Hydrology pass: decide navigable (tile) vs non-navigable (edge) river segments and transition points
 - [ ] Resource placement honoring biome rules and minimum-distance constraints
@@ -62,11 +62,11 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## ScriptableObject content
 
-- [ ] `BiomeDefinition` SO (climate envelope, base color, allowed features, allowed resources)
+- [~] `BiomeDefinition` SO (climate envelope, base color, water/coastal flags shipped in Slice 6; allowed-features and allowed-resources lists land alongside the feature and resource slices)
 - [ ] `ResourceDefinition` SO (placement rules, rarity, biome compatibility)
 - [ ] `TileFeatureDefinition` SO (forests, hills, marshes — visual + gameplay tags)
 - [ ] `WorldPreset` SO (named bundles of generation settings — "Earth-like", "Archipelago", "Frozen", etc.)
-- [ ] Default content set v1 — starter biomes per ADR-0011: **Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow** (7 biomes). Mediterranean added in a later content drop. Full Civilization VII terrain / biome catalog remains the parity target per ADR-0007.
+- [x] Default content set v1 — 7 starter biome `BiomeDefinition.asset` files shipped under `Assets/HexWorldStudio/Content/Biomes/` per ADR-0011: Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow. Climate envelopes exhaustively partition the (T, M) unit square for land tiles. Mediterranean and the full Civilization VII catalog remain the long-term parity target per ADR-0007.
 - [ ] Default tile-feature set v1 per ADR-0011: Grassland, Savannah, Desert, Snowfield, Forest, Hill, Mountain, Rocky. Per-biome allow-lists drawn from ADR-0011's table. Jungle / Rainforest under consideration for Tropical and pending Slice 6 design.
 
 ## Custom Editor
