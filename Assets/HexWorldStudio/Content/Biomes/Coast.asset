@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f73ed2ba68c41d499f52be0ecad3933, type: 3}
+  m_Name: Coast
+  m_EditorClassIdentifier:
+  BiomeName: Coast
+  Color: {r: 0.22745098, g: 0.4862745, b: 0.72156864, a: 1}
+  IsWater: 1
+  IsCoastalWater: 1
+  MinTemperature: 0
+  MaxTemperature: 0
+  MinMoisture: 0
+  MaxMoisture: 0
