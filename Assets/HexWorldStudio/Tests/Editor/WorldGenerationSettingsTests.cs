@@ -1,5 +1,7 @@
+using HexWorldStudio.Content;
 using HexWorldStudio.Generation;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace HexWorldStudio.Tests
 {
@@ -70,6 +72,35 @@ namespace HexWorldStudio.Tests
             Assert.DoesNotThrow(() => new WorldGenerationSettings(80, 50, 0UL, -0.5f));
             Assert.DoesNotThrow(() => new WorldGenerationSettings(80, 50, 0UL, 1.5f));
             Assert.DoesNotThrow(() => new WorldGenerationSettings(80, 50, 0UL, float.NaN));
+        }
+
+        [Test]
+        public void Constructor_ThreeArg_LeavesBiomesEmpty()
+        {
+            var s = new WorldGenerationSettings(80, 50, 0UL);
+            Assert.That(s.Biomes, Is.Not.Null);
+            Assert.That(s.Biomes.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Constructor_FourArg_LeavesBiomesEmpty()
+        {
+            var s = new WorldGenerationSettings(80, 50, 0UL, 0.5f);
+            Assert.That(s.Biomes, Is.Not.Null);
+            Assert.That(s.Biomes.Count, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Constructor_FiveArg_StoresBiomesList()
+        {
+            BiomeDefinition[] biomes = new[]
+            {
+                ScriptableObject.CreateInstance<BiomeDefinition>(),
+                ScriptableObject.CreateInstance<BiomeDefinition>(),
+            };
+            var s = new WorldGenerationSettings(80, 50, 0UL, 0.5f, biomes);
+            Assert.That(s.Biomes, Is.SameAs(biomes));
+            Assert.That(s.Biomes.Count, Is.EqualTo(2));
         }
     }
 }

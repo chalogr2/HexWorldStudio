@@ -1,6 +1,8 @@
+using HexWorldStudio.Content;
 using HexWorldStudio.Coordinates;
 using HexWorldStudio.Data;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace HexWorldStudio.Tests
 {
@@ -94,6 +96,23 @@ namespace HexWorldStudio.Tests
             var tile = new HexTile(HexCoord.Zero, 0);
             tile.ElevationLevel = 3;
             Assert.That(tile.ElevationLevel, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Biome_DefaultsToNull()
+        {
+            var tile = new HexTile(HexCoord.Zero, 0);
+            Assert.That(tile.Biome, Is.Null);
+        }
+
+        [Test]
+        public void Biome_CanBeSetViaInternalSetter()
+        {
+            var tile = new HexTile(HexCoord.Zero, 0);
+            BiomeDefinition biome = ScriptableObject.CreateInstance<BiomeDefinition>();
+            biome.BiomeName = "Test";
+            tile.Biome = biome;
+            Assert.That(tile.Biome, Is.SameAs(biome));
         }
     }
 }

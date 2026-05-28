@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using HexWorldStudio.Content;
 
 namespace HexWorldStudio.Generation
 {
@@ -69,17 +71,46 @@ namespace HexWorldStudio.Generation
         public float LandRatio { get; }
 
         /// <summary>
+        /// The biome content set used by <c>BiomeAssignmentStage</c>.
+        /// Buyers add, remove, or replace biomes by passing a different
+        /// list — the system has no hardcoded biome assumptions. Only
+        /// structural requirements (≥1 water, ≥1 coastal water, ≥1
+        /// non-water) are enforced at <c>Generate</c>.
+        /// </summary>
+        /// <remarks>
+        /// The list is stored by reference (no defensive copy) so that
+        /// buyer-side reload / hot-edit flows work — mutations to the
+        /// list mid-generation produce undefined behavior, as do
+        /// generation flows in general.
+        /// </remarks>
+        public IReadOnlyList<BiomeDefinition> Biomes { get; }
+
+        /// <summary>
         /// Constructs a settings instance with the default
-        /// <see cref="LandRatio"/> of <see cref="DefaultLandRatio"/>.
+        /// <see cref="LandRatio"/> and an empty biome set. Generation
+        /// will fail at <c>HexWorldGenerator.Generate</c> because the
+        /// biome set is empty; use a constructor overload that takes
+        /// a populated <c>biomes</c> list to produce a runnable
+        /// configuration.
         /// </summary>
         public WorldGenerationSettings(int width, int height, ulong seed)
-            : this(width, height, seed, DefaultLandRatio)
+            : this(width, height, seed, DefaultLandRatio, Array.Empty<BiomeDefinition>())
         {
         }
 
         /// <summary>
         /// Constructs a settings instance with an explicit
-        /// <paramref name="landRatio"/>.
+        /// <paramref name="landRatio"/> and an empty biome set.
+        /// Generation will fail at <c>HexWorldGenerator.Generate</c>
+        /// because the biome set is empty.
+        /// </summary>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio)
+            : this(width, height, seed, landRatio, Array.Empty<BiomeDefinition>())
+        {
+        }
+
+        /// <summary>
+        /// Constructs a fully-specified settings instance.
         /// </summary>
         /// <param name="width">Number of columns. Must be positive at generation time.</param>
         /// <param name="height">Number of rows. Must be positive at generation time.</param>
@@ -88,12 +119,21 @@ namespace HexWorldStudio.Generation
         /// Target proportion of land tiles. Must be strictly between
         /// 0 and 1 at generation time.
         /// </param>
-        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio)
+        /// <param name="biomes">
+        /// Biome content set. Must be non-empty and contain at least
+        /// one Ocean-style biome (IsWater &amp;&amp; !IsCoastalWater),
+        /// one Coast-style biome (IsWater &amp;&amp; IsCoastalWater),
+        /// and one land biome, all validated at
+        /// <c>HexWorldGenerator.Generate</c>.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
+                                       IReadOnlyList<BiomeDefinition> biomes)
         {
             Width = width;
             Height = height;
             Seed = seed;
             LandRatio = landRatio;
+            Biomes = biomes;
         }
     }
 }

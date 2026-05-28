@@ -1,3 +1,4 @@
+using HexWorldStudio.Content;
 using HexWorldStudio.Coordinates;
 
 namespace HexWorldStudio.Data
@@ -110,6 +111,19 @@ namespace HexWorldStudio.Data
         /// the per-map elevation-level count (default 6).
         /// </remarks>
         public int ElevationLevel { get; internal set; } = -1;
+
+        /// <summary>
+        /// The biome assigned to this tile by
+        /// <c>BiomeAssignmentStage</c>. References a
+        /// <see cref="BiomeDefinition"/> ScriptableObject from
+        /// <c>WorldGenerationSettings.Biomes</c>.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <c>null</c> until biome assignment runs. After
+        /// the default pipeline completes, every tile carries a
+        /// non-null biome reference.
+        /// </remarks>
+        public BiomeDefinition Biome { get; internal set; }
 
         /// <summary>
         /// Constructs a tile bound to a specific coordinate and index.

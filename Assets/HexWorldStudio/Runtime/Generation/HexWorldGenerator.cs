@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using HexWorldStudio.Content;
 using HexWorldStudio.Data;
 using HexWorldStudio.Generation.Pipeline;
 using HexWorldStudio.Generation.Pipeline.Stages;
@@ -63,6 +65,43 @@ namespace HexWorldStudio.Generation
             };
         }
 
+        // Settings.Biomes must contain at least one tile-source of each
+        // structural role: Ocean (water, non-coastal), Coast (water,
+        // coastal), and at least one land biome. Buyers may otherwise
+        // ship any biome set they like — fewer than 7, more than 7,
+        // entirely non-default content, fantasy biomes.
+        private static void ValidateBiomes(IReadOnlyList<BiomeDefinition> biomes)
+        {
+            if (biomes == null || biomes.Count == 0)
+            {
+                throw new ArgumentException(
+                    "settings.Biomes must be non-empty. Provide at least one " +
+                    "Ocean (IsWater && !IsCoastalWater), one Coast (IsWater && IsCoastalWater), " +
+                    "and one non-water biome.",
+                    nameof(biomes));
+            }
+
+            bool hasOcean = false, hasCoast = false, hasLand = false;
+            for (int i = 0; i < biomes.Count; i++)
+            {
+                BiomeDefinition b = biomes[i];
+                if (b == null) continue;
+                if (b.IsWater && !b.IsCoastalWater) hasOcean = true;
+                else if (b.IsWater && b.IsCoastalWater) hasCoast = true;
+                else if (!b.IsWater) hasLand = true;
+            }
+
+            if (!hasOcean || !hasCoast || !hasLand)
+            {
+                throw new ArgumentException(
+                    $"settings.Biomes is missing required roles. " +
+                    $"hasOcean={hasOcean}, hasCoast={hasCoast}, hasLand={hasLand}. " +
+                    $"At minimum: one Ocean (IsWater && !IsCoastalWater), one Coast " +
+                    $"(IsWater && IsCoastalWater), and one non-water biome.",
+                    nameof(biomes));
+            }
+        }
+
         /// <summary>
         /// Runs the pipeline against the given settings and returns the
         /// resulting <see cref="WorldMap"/>.
@@ -108,6 +147,7 @@ namespace HexWorldStudio.Generation
                     settings.LandRatio,
                     $"settings.LandRatio must be strictly between 0 and 1 (got {settings.LandRatio}).");
             }
+            ValidateBiomes(settings.Biomes);
 
             var map = new WorldMap(settings.Width, settings.Height, settings.Seed);
             var rng = new RngService(settings.Seed);
