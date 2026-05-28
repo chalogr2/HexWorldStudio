@@ -62,6 +62,8 @@ namespace HexWorldStudio.Generation
                 new ContinentShapeStage(),
                 new ElevationFieldStage(),
                 new ElevationLevelQuantizationStage(),
+                new ClimateStage(),
+                new BiomeAssignmentStage(),
             };
         }
 
