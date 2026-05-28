@@ -106,6 +106,10 @@ Stages are internal types implementing a small `IGenerationStage` interface. The
 
 **Per-tile classification is three-axis** (ADR-0011): `Biome` (climate band, from a `BiomeDefinition` SO), `TileFeature` (terrain detail, from a `TileFeatureDefinition` SO chosen from the biome's allow-list), and `ElevationLevel` (discrete int derived from the continuous `Elevation` field via a quantization + smoothing pass that produces contiguous plateaus). The discrete level supports the default Civ-style "move ±1 elevation level" traversal rule for buyer gameplay code.
 
+**Climate model uses prevailing-wind moisture** (ADR-0012): the default `ClimateStage` computes temperature from latitude with an elevation lapse-rate modifier, and moisture by simulating east-to-west wind transport across each cylindrical row (water tiles charge the wind with moisture; land tiles deposit it via orographic precipitation; high-elevation tiles produce rain shadows on their leeward side). This is the v1 baseline; latitude-banded wind variants and other Civ-style climate models land as alternative `IGenerationStage` implementations later per ADR-0010.
+
+**Biome content is fully modular**: `WorldGenerationSettings.Biomes` accepts any `IReadOnlyList<BiomeDefinition>`. The default 7-biome content set (Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow per ADR-0011) is shipped under `Assets/HexWorldStudio/Content/Biomes/` and may be replaced wholesale, extended, or shrunk by buyers. The only structural requirements (validated at `Generate`) are at least one water biome, at least one coastal-water biome (`IsWater && IsCoastalWater`), and at least one non-water biome. Fewer or more than seven biomes is fine; fantasy biomes are first-class per ADR-0007.
+
 ## Request-to-render flow
 
 1. User opens the **Hex World Generator** editor window.

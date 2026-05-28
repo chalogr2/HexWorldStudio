@@ -263,3 +263,33 @@ The user's Civ-style mental model naturally separates climate (Temperate, Arid, 
 - `ContinentShapeStage` (Slice 5) operates on raw noise + threshold and writes `LandState`; the discretization / smoothing pass for `ElevationLevel` is a separate stage that runs after `ElevationFieldStage`.
 - `BiomeDefinition` SO authoring (Slice 6) carries an allow-list of `TileFeatureDefinition`s, and the feature-placement stage respects it.
 - Per ADR-0007, the precise enumeration of biomes and features is verified against live Civilization VII at the time SOs are authored; this ADR commits the v1 starter set to what the user specified.
+
+---
+
+## ADR-0012 — Prevailing-wind moisture model is the v1 baseline climate algorithm
+
+**Date:** 2026-05-28
+**Status:** Accepted
+
+**Decision:**
+The default `ClimateStage` shipping in Slice 6 produces per-tile moisture via a prevailing-wind transport simulation (east-to-west, uniform across all latitudes for v1). Wind picks up moisture over water tiles, deposits it as orographic precipitation on land (more on windward elevation gradients), and creates rain shadows leeward of high-elevation tiles. Multiple passes around the cylindrical row ensure initial-condition effects wash out before the moisture distribution is read.
+
+The simpler distance-from-water BFS algorithm initially proposed for Slice 6 is **not** shipped in v1: the wind model implicitly produces the same coastal-wet → interior-dry gradient that BFS would, while also producing the rain-shadow asymmetries (windward sides of mountain ranges wetter than leeward) that BFS cannot.
+
+**Alternatives considered:**
+
+- *Distance-from-water BFS only.* Simpler, but misses the rain-shadow physics central to Civ-style maps. Rejected for default; could land later as a faster alternate algorithm per ADR-0010.
+- *Wind without orographic precipitation.* Misses the "windward = wetter than leeward" effect that creates interesting biome boundaries around mountain ranges. Rejected.
+- *Latitude-banded wind directions* (easterlies near the equator, westerlies in mid-latitudes, easterlies again at the poles, mirroring Earth's atmospheric circulation). More physically accurate but adds complexity to the baseline. Deferred as an alternate `ClimateStage` implementation per ADR-0010 — tracked in `FEATURES.md` "Map type algorithms".
+- *Multi-pass moisture diffusion (Gaussian-blur style).* Cheap but ignores directionality entirely. Rejected.
+
+**Reasoning:**
+The prevailing-wind model is the algorithm that produces visually correct rain-shadow effects — a defining feature of Civ-style maps with mountain ranges. Shipping it as the baseline in Slice 6 (rather than deferring it behind a simpler BFS default) avoids a future migration where the easy default would have to be replaced. We go straight to the right answer.
+
+**Implementation note:**
+- Wind direction: east-to-west, uniform. Latitude-banded variants land later per ADR-0010.
+- Multiple passes per row (default: 3) so the initial-condition effects from arbitrary starting moisture wash out.
+- Water tiles: `Moisture = 1.0` by definition; they also recharge the wind's carried moisture.
+- Land tiles: orographic precipitation deposit increases with elevation; rain shadow consumes additional carried moisture proportional to elevation.
+- Empirical constants are hardcoded in `ClimateStage` for v1; per-map override moves to `WorldPreset` content later.
+- A small Perlin perturbation (labeled `"noise-moisture"`) is added after the wind pass for variety, then the field is clamped to <c>[0, 1]</c>.
