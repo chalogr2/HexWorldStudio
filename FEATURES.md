@@ -53,7 +53,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 ## Data Model
 
 - [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API in; serialization, river network, biome/feature/resource refs pending)
-- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state in; biome / feature / resource refs and discrete `ElevationLevel` pending content SOs and the elevation-discretization stage)
+- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state, discrete `ElevationLevel`, and biome reference all in; tile-feature and resource references land alongside the feature and resource slices)
 - [x] Discrete `ElevationLevel` field on `HexTile` (int, 0..N-1) plus the `ElevationLevelQuantizationStage` that derives it from the continuous `Elevation` field with median-smoothing over the wrap-aware 6-neighborhood (Slice 5; default `N = 6`, per-map configurability lands with `WorldPreset` content)
 - [x] Axial / cube / offset coordinate utilities and conversions
 - [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)

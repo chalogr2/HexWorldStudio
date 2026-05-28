@@ -25,11 +25,15 @@ namespace HexWorldStudio.Generation
     /// on separate threads; a single instance is not thread-safe.
     /// </para>
     /// <para>
-    /// The default pipeline is currently empty: <see cref="Generate"/>
-    /// allocates the <see cref="WorldMap"/>, seeds the RNG from the
-    /// settings, runs zero stages, and returns the map. Tiles therefore
-    /// retain their default NaN / <c>TileLandState.Unset</c> values
-    /// until later slices add the actual stages.
+    /// The default pipeline runs five stages in order: continent
+    /// shape, elevation field, elevation-level quantization, climate,
+    /// and biome assignment. After <see cref="Generate"/> returns,
+    /// every tile carries a non-default <c>LandState</c>, a numeric
+    /// <c>Elevation</c> and <c>ElevationLevel</c>, a numeric
+    /// <c>Temperature</c> and <c>Moisture</c>, and a non-null
+    /// <c>Biome</c> reference. Later slices append further stages
+    /// (hydrology, resource placement, starting positions, post-
+    /// processing).
     /// </para>
     /// <para>
     /// Settings validation lives here, not in
@@ -43,8 +47,10 @@ namespace HexWorldStudio.Generation
         private readonly IGenerationStage[] _stages;
 
         /// <summary>
-        /// Constructs a generator with the default pipeline (empty in v1
-        /// Slice 4; subsequent slices append stages as they're authored).
+        /// Constructs a generator with the default v1 pipeline (five
+        /// stages: continent shape → elevation field → elevation-level
+        /// quantization → climate → biome assignment). Later slices
+        /// append further stages.
         /// </summary>
         public HexWorldGenerator()
         {
