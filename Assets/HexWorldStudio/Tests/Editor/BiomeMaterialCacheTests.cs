@@ -3,6 +3,7 @@ using HexWorldStudio.Content;
 using HexWorldStudio.Rendering;
 using NUnit.Framework;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace HexWorldStudio.Tests
 {
