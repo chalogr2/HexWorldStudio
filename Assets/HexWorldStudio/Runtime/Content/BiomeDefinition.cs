@@ -78,6 +78,15 @@ namespace HexWorldStudio.Content
         public float MaxMoisture = 1f;
 
         /// <summary>
+        /// Tile features this biome allows. Empty or null for water
+        /// biomes (Ocean, Coast); non-empty for land biomes. The
+        /// default <c>TileFeaturePlacementStage</c> scores only the
+        /// features that appear in this array and assigns one to
+        /// every land tile per ADR-0014.
+        /// </summary>
+        public TileFeatureDefinition[] AllowedFeatures;
+
+        /// <summary>
         /// True when <paramref name="temperature"/> and
         /// <paramref name="moisture"/> both fall inside this biome's
         /// envelope. Always false for water biomes (water tiles match

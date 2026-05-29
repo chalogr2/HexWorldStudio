@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
+  m_Name: Forest
+  m_EditorClassIdentifier:
+  FeatureName: Forest
+  Color: {r: 0.18039216, g: 0.49019608, b: 0.19607843, a: 1}
+  PreferredElevationLevel: 2
+  Weight: 1.5
+  IsImpassable: 0
+  MovementCostMultiplier: 1.5

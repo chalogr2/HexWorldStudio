@@ -20,3 +20,9 @@ MonoBehaviour:
   MaxTemperature: 1
   MinMoisture: 0.4
   MaxMoisture: 1
+  AllowedFeatures:
+  - {fileID: 11400000, guid: da73482701a645eb9bf386127df29feb, type: 2}
+  - {fileID: 11400000, guid: 16aeaeea4a94420eaf6e2e4c283e258d, type: 2}
+  - {fileID: 11400000, guid: fbb6cce234164583825f61df1d3856e3, type: 2}
+  - {fileID: 11400000, guid: c55e938badd9413b9662237978312467, type: 2}
+  - {fileID: 11400000, guid: 7a452e8e962841369d9db4c57ac23a1b, type: 2}
