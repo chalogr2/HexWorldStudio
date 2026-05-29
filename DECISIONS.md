@@ -320,3 +320,40 @@ Pointy-top is the convention in Civilization V, VI, and VII — the games this a
 - Odd rows shift right by `InnerRadius ≈ 0.866`.
 - Hex mesh: 7 vertices (center + 6 ring) and 6 triangles (fan from center), normals +Y.
 - Mesh / spacing constants live on `HexMesh` as `public const`/`public static readonly` so buyer scripts can also use them for custom layout math.
+
+---
+
+## ADR-0014 — Tile-feature placement: per-biome allow-list + elevation-weighted selection
+
+**Date:** 2026-05-29
+**Status:** Accepted
+
+**Decision:**
+The default `TileFeaturePlacementStage` assigns one `TileFeatureDefinition` per non-water tile. Selection works in two phases:
+
+1. **Eligibility (per-biome allow-list).** Each `BiomeDefinition` exposes an `AllowedFeatures` array. A feature is eligible for a tile only if it appears in the tile's biome's `AllowedFeatures` list. Water biomes (Ocean, Coast) carry an empty allow-list and produce a `null` `HexTile.Feature` — water tiles have no feature in v1.
+
+2. **Weighted selection (elevation-driven).** Among eligible features, each carries a `PreferredElevationLevel` (int) and a `Weight` (float) authored on the SO. The placement stage computes a per-feature score `weight * exp(-distance² / σ²)` where `distance = |tile.ElevationLevel - PreferredElevationLevel|` and `σ` controls how fast the score drops off (constant 1.5 for v1). The chosen feature is drawn from the resulting distribution using `RngService.Fork("feature-placement")`.
+
+Same seed + same content → same feature assignment per tile.
+
+**Alternatives considered:**
+
+- *Uniform-random pick from the allow-list.* Rejected. Produces visually uniform "blob" maps — mountains scattered through low-elevation plains, hills next to peaks, no spatial coherence with elevation.
+- *Hardcoded elevation→feature lookup table* (level 5 → Mountain, level 4 → Hill, etc.). Rejected. Locks the feature roster into engine code rather than content, breaking the SO-driven extensibility model from ADR-0007 and ADR-0011.
+- *Pluggable per-stage scoring function* (buyer supplies a scoring callback). Considered. Out of scope for v1; future variants land as additional `IGenerationStage` implementations per ADR-0010.
+- *Cluster-based feature placement* (paint feature regions, then per-tile pick). Rejected for v1 baseline; defer to a future "feature regions" algorithm.
+
+**Reasoning:**
+Per-biome allow-lists give buyers full control over which features can appear in which biomes without touching engine code — a Tropical biome that omits "Forest" simply leaves Forest out of its `AllowedFeatures`. Elevation-weighted selection produces visually coherent terrain (mountains cluster at high `ElevationLevel`, plains at low) without requiring a second-stage region pass. The Gaussian falloff is smooth — adjacent elevation levels remain compatible with neighboring features, avoiding hard biome-feature boundaries.
+
+**Implementation note:**
+- `TileFeatureDefinition` fields: `FeatureName`, `Color`, `PreferredElevationLevel`, `Weight`, `IsImpassable`, `MovementCostMultiplier`. Visual prefab / 3D model references are deferred to a polish slice.
+- `BiomeDefinition.AllowedFeatures` is a `TileFeatureDefinition[]` (`null` or empty for water biomes; non-empty for the 5 land biomes per ADR-0011).
+- The default content set ships 8 features: Grassland, Savannah, Desert, Snowfield, Forest, Hill, Mountain, Rocky.
+- Per-biome feature lists from ADR-0011:
+  - Temperate, Tropical, Tundra → Grassland, Forest, Hill, Mountain, Rocky
+  - Arid → Savannah, Desert, Hill, Mountain, Rocky
+  - Snow → Snowfield, Forest, Hill, Mountain, Rocky
+- Default `PreferredElevationLevel` per feature: Grassland / Savannah / Desert / Snowfield 1, Forest 2, Hill 3, Rocky 3, Mountain 5.
+- Default `Weight` per feature: flat-terrain types 2.0, Forest 1.5, Hill 1.0, Rocky 0.6, Mountain 0.5 — biases toward flat terrain at default elevations while still producing visible mountains and hills.
