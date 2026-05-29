@@ -62,7 +62,10 @@ namespace HexWorldStudio.Rendering
         private Mesh _sharedMesh;
         private BiomeMaterialCache _materialCache;
         private readonly List<GameObject> _tileObjects = new List<GameObject>();
-        private readonly MaterialPropertyBlock _propertyBlock = new MaterialPropertyBlock();
+        // MaterialPropertyBlock cannot be created as a field initializer
+        // on a MonoBehaviour — Unity rejects calls into its internals from
+        // a base ctor. Created lazily on first use.
+        private MaterialPropertyBlock _propertyBlock;
 
         /// <summary>
         /// Number of tile GameObjects currently parented to this
@@ -171,6 +174,7 @@ namespace HexWorldStudio.Rendering
 
         private void ApplyTileColor(MeshRenderer meshRenderer, Color color)
         {
+            if (_propertyBlock == null) _propertyBlock = new MaterialPropertyBlock();
             meshRenderer.GetPropertyBlock(_propertyBlock);
             _propertyBlock.SetColor(BaseColorProperty, color);
             meshRenderer.SetPropertyBlock(_propertyBlock);
