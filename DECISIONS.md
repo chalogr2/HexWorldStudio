@@ -293,3 +293,30 @@ The prevailing-wind model is the algorithm that produces visually correct rain-s
 - Land tiles: orographic precipitation deposit increases with elevation; rain shadow consumes additional carried moisture proportional to elevation.
 - Empirical constants are hardcoded in `ClimateStage` for v1; per-map override moves to `WorldPreset` content later.
 - A small Perlin perturbation (labeled `"noise-moisture"`) is added after the wind pass for variety, then the field is clamped to <c>[0, 1]</c>.
+
+---
+
+## ADR-0013 — Renderer uses pointy-top hex orientation
+
+**Date:** 2026-05-29
+**Status:** Accepted
+
+**Decision:**
+The default `WorldRenderer` and the `HexMesh` builder render every hex as a **pointy-top** hex (vertex up, flat edges on the left and right). Pointy-top hexes are laid out in odd-r offset so the renderer's row/column positioning matches the existing data-layer odd-r conventions (ADR-confirmed in Slice 1 and used by `HexCoordExtensions`). `HexCoord` and `HexCoordExtensions` stay orientation-agnostic per their original design — orientation lives in the rendering layer alone.
+
+**Alternatives considered:**
+
+- *Flat-top hexes* (point-up sides, flat top and bottom). Visually identical class of games (Settlers, Endless Legend), but mismatches the Civ-style mental model the project is built around and would have required renaming `HexDirection.NorthEast`/`East`/etc. to a different compass rosette. Rejected.
+- *Per-renderer-instance orientation choice* (settings field on `WorldRenderer` to swap pointy-top vs flat-top). Considered. Rejected for v1 — it doubles the mesh-builder surface, the camera math, the screen-space hit testing, and the per-tile world-position calculation. v1 ships pointy-top; flat-top support is a v1.1 candidate if buyer demand surfaces. Tracked in `FEATURES.md` "Stretch — v1.1".
+- *Orientation chosen at runtime by a `BiomeDefinition` flag* or similar content-driven mechanism. Rejected. Orientation is a global property of the map, not per-tile data; mixing orientations within a single map would break the layout grid.
+
+**Reasoning:**
+Pointy-top is the convention in Civilization V, VI, and VII — the games this asset's buyer demographic is most likely to model. The existing `HexDirection` labels already describe the six pointy-top neighbor directions (East / NorthEast / NorthWest / West / SouthWest / SouthEast). Locking in pointy-top here pins the renderer-side convention without affecting any of the data-layer types.
+
+**Implementation note:**
+- Outer radius (center → vertex) defaults to 1 world unit. Inner radius (center → edge midpoint) is `√3 / 2 ≈ 0.866` world units.
+- Horizontal tile-to-tile spacing in the same row: `2 * InnerRadius ≈ 1.732`.
+- Vertical row-to-row spacing: `1.5 * OuterRadius = 1.5`.
+- Odd rows shift right by `InnerRadius ≈ 0.866`.
+- Hex mesh: 7 vertices (center + 6 ring) and 6 triangles (fan from center), normals +Y.
+- Mesh / spacing constants live on `HexMesh` as `public const`/`public static readonly` so buyer scripts can also use them for custom layout math.

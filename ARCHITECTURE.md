@@ -110,6 +110,8 @@ Stages are internal types implementing a small `IGenerationStage` interface. The
 
 **Biome content is fully modular**: `WorldGenerationSettings.Biomes` accepts any `IReadOnlyList<BiomeDefinition>`. The default 7-biome content set (Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow per ADR-0011) is shipped under `Assets/HexWorldStudio/Content/Biomes/` and may be replaced wholesale, extended, or shrunk by buyers. The only structural requirements (validated at `Generate`) are at least one water biome, at least one coastal-water biome (`IsWater && IsCoastalWater`), and at least one non-water biome. Fewer or more than seven biomes is fine; fantasy biomes are first-class per ADR-0007.
 
+**Renderer uses pointy-top hex orientation** (ADR-0013): the default `WorldRenderer` and `HexMesh` builder produce pointy-top hexes in odd-r offset layout. `HexCoord` itself remains orientation-agnostic; the orientation choice lives in the rendering layer alone. Outer radius (`OuterRadius`, default 1 world unit) is the center-to-vertex distance; inner radius (`InnerRadius`, `√3 / 2`) is center-to-edge. Horizontal tile-to-tile spacing is `2 * InnerRadius`, vertical row-to-row spacing is `1.5 * OuterRadius`, and odd rows shift right by `InnerRadius`. Tiles are positioned vertically by `ElevationLevel * ElevationStep` so the discrete elevation bands are visible in the demo scene. Flat-top variants are out of scope for v1; see ADR-0013.
+
 ## Request-to-render flow
 
 1. User opens the **Hex World Generator** editor window.
