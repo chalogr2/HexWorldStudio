@@ -70,6 +70,7 @@ namespace HexWorldStudio.Generation
                 new ElevationLevelQuantizationStage(),
                 new ClimateStage(),
                 new BiomeAssignmentStage(),
+                new TileFeaturePlacementStage(),
             };
         }
 
