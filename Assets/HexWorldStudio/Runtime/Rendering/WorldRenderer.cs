@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HexWorldStudio.Content;
+using HexWorldStudio.Coordinates;
 using HexWorldStudio.Data;
 using UnityEngine;
 
@@ -103,13 +104,13 @@ namespace HexWorldStudio.Rendering
             for (int i = 0; i < _tileObjects.Count; i++)
             {
                 GameObject go = _tileObjects[i];
-                if (go != null) DestroyObject(go);
+                if (go != null) DestroySafely(go);
             }
             _tileObjects.Clear();
 
             if (_sharedMesh != null)
             {
-                DestroyObject(_sharedMesh);
+                DestroySafely(_sharedMesh);
                 _sharedMesh = null;
             }
 
@@ -179,7 +180,7 @@ namespace HexWorldStudio.Rendering
         // DestroyImmediate to actually take effect; PlayMode uses
         // Destroy so we don't trip the "DestroyImmediate inside Play"
         // warning.
-        private static void DestroyObject(UnityEngine.Object obj)
+        private static void DestroySafely(UnityEngine.Object obj)
         {
             if (Application.isPlaying)
             {
