@@ -83,8 +83,8 @@ namespace HexWorldStudio.Tests.Runtime
             }
             finally
             {
-                Object.Destroy(host);
-                foreach (BiomeDefinition b in biomes) Object.Destroy(b);
+                Object.DestroyImmediate(host);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
             }
         }
 
@@ -122,8 +122,8 @@ namespace HexWorldStudio.Tests.Runtime
             }
             finally
             {
-                Object.Destroy(host);
-                foreach (BiomeDefinition b in biomes) Object.Destroy(b);
+                Object.DestroyImmediate(host);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
             }
         }
 
@@ -151,8 +151,8 @@ namespace HexWorldStudio.Tests.Runtime
             }
             finally
             {
-                Object.Destroy(host);
-                foreach (BiomeDefinition b in biomes) Object.Destroy(b);
+                Object.DestroyImmediate(host);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
             }
         }
 
@@ -191,8 +191,8 @@ namespace HexWorldStudio.Tests.Runtime
             }
             finally
             {
-                Object.Destroy(host);
-                foreach (BiomeDefinition b in biomes) Object.Destroy(b);
+                Object.DestroyImmediate(host);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
             }
         }
 
@@ -221,8 +221,8 @@ namespace HexWorldStudio.Tests.Runtime
             }
             finally
             {
-                Object.Destroy(host);
-                foreach (BiomeDefinition b in biomes) Object.Destroy(b);
+                Object.DestroyImmediate(host);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
             }
         }
 
