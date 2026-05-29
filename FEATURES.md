@@ -53,7 +53,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 ## Data Model
 
 - [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API in; serialization, river network, biome/feature/resource refs pending)
-- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state, discrete `ElevationLevel`, and biome reference all in; tile-feature and resource references land alongside the feature and resource slices)
+- [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state, discrete `ElevationLevel`, biome reference, and `TileFeature` reference all in; resource references land with the resource slice)
 - [x] Discrete `ElevationLevel` field on `HexTile` (int, 0..N-1) plus the `ElevationLevelQuantizationStage` that derives it from the continuous `Elevation` field with median-smoothing over the wrap-aware 6-neighborhood (Slice 5; default `N = 6`, per-map configurability lands with `WorldPreset` content)
 - [x] Axial / cube / offset coordinate utilities and conversions
 - [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)
@@ -64,10 +64,10 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 - [~] `BiomeDefinition` SO (climate envelope, base color, water/coastal flags shipped in Slice 6; allowed-features and allowed-resources lists land alongside the feature and resource slices)
 - [ ] `ResourceDefinition` SO (placement rules, rarity, biome compatibility)
-- [ ] `TileFeatureDefinition` SO (forests, hills, marshes — visual + gameplay tags)
+- [x] `TileFeatureDefinition` SO (Slice 7B; carries FeatureName, Color, PreferredElevationLevel, Weight, IsImpassable, MovementCostMultiplier per ADR-0014; 8 default features shipped; visual prefab references deferred to a polish slice)
 - [ ] `WorldPreset` SO (named bundles of generation settings — "Earth-like", "Archipelago", "Frozen", etc.)
 - [x] Default content set v1 — 7 starter biome `BiomeDefinition.asset` files shipped under `Assets/HexWorldStudio/Content/Biomes/` per ADR-0011: Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow. Climate envelopes exhaustively partition the (T, M) unit square for land tiles. Mediterranean and the full Civilization VII catalog remain the long-term parity target per ADR-0007.
-- [ ] Default tile-feature set v1 per ADR-0011: Grassland, Savannah, Desert, Snowfield, Forest, Hill, Mountain, Rocky. Per-biome allow-lists drawn from ADR-0011's table. Jungle / Rainforest under consideration for Tropical and pending Slice 6 design.
+- [x] Default tile-feature set v1 (Slice 7B): Grassland, Savannah, Desert, Snowfield, Forest, Hill, Mountain, Rocky shipped under `Assets/HexWorldStudio/Content/Features/`. Per-biome allow-lists wired per the ADR-0011 / ADR-0014 table. Jungle / Rainforest remain candidates for a future Tropical expansion.
 
 ## Custom Editor
 
@@ -88,8 +88,8 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## Rendering / Visualization
 
-- [ ] URP demo renderer: instanced hex meshes per biome
-- [ ] Low-poly biome materials (URP shader graphs or simple lit shaders)
+- [~] URP demo renderer (Slice 7A): `WorldRenderer` MonoBehaviour produces one GameObject per tile, shared `HexMesh`, per-biome `Material` cache, per-tile `MaterialPropertyBlock` for color (feature color preferred over biome color), `MeshCollider` for Slice 9 raycasts. Chunked / instanced rendering deferred per FEATURES "Performance & scaling".
+- [~] Low-poly biome materials — URP/Lit material per biome with `_BaseColor` set from `BiomeDefinition.Color` (Slice 7A). Custom URP shader graphs deferred.
 - [ ] Non-navigable river ribbon meshes (along edges)
 - [ ] Navigable river tile geometry/material (per-tile)
 - [ ] Resource prop placement
@@ -97,7 +97,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## Demo Scenes
 
-- [ ] "Quick Start" scene: minimal generator + camera, one click to regenerate
+- [~] "Quick Start" scene (Slice 7A): hand-authored `Examples/QuickStart/QuickStartScene.unity` ships with a Bootstrap GameObject pre-wired to the 7 default biome assets and the `WorldRenderer`. Press Play to see a 32×20 world. Regenerate button comes when settings UI lands.
 - [ ] "Earth-like" preset showcase
 - [ ] "Archipelago" preset showcase
 - [ ] "Frozen World" preset showcase
