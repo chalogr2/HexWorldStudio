@@ -167,9 +167,16 @@ namespace HexWorldStudio.Rendering
 
         // Slice 7A: color comes from the biome. Slice 7B extends this
         // to read tile.Feature.Color when a feature is assigned.
+        // Color resolution: feature color wins when assigned (so
+        // forests, hills, mountains read distinctly), biome color is
+        // the fallback (water tiles + un-featured land). Magenta is
+        // the "nothing assigned" diagnostic color, intentionally
+        // ugly so missing data is immediately visible.
         private static Color ResolveTileColor(HexTile tile)
         {
-            return tile.Biome != null ? tile.Biome.Color : Color.magenta;
+            if (tile.Feature != null) return tile.Feature.Color;
+            if (tile.Biome != null)   return tile.Biome.Color;
+            return Color.magenta;
         }
 
         private void ApplyTileColor(MeshRenderer meshRenderer, Color color)

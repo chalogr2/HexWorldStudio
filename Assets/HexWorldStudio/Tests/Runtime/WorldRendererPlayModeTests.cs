@@ -240,6 +240,59 @@ namespace HexWorldStudio.Tests.Runtime
             }
         }
 
+        [UnityTest]
+        public IEnumerator Render_TileColor_PrefersFeatureColorOverBiomeColor()
+        {
+            BiomeDefinition[] biomes = (BiomeDefinition[])MinimalBiomeSet(
+                out _, out _, out BiomeDefinition land);
+
+            // Author a feature with a deliberately distinct color
+            // (hot pink, unlike the land biome color) so we can verify
+            // the feature color wins through to the property block.
+            var feature = ScriptableObject.CreateInstance<TileFeatureDefinition>();
+            feature.FeatureName = "PlayFeature";
+            feature.Color = new Color(0.95f, 0.10f, 0.85f, 1f);
+            feature.PreferredElevationLevel = 0;
+            feature.Weight = 1f;
+            land.AllowedFeatures = new[] { feature };
+
+            GameObject host = NewRendererHost(out WorldRenderer renderer);
+            try
+            {
+                var settings = new WorldGenerationSettings(Width, Height, Seed,
+                    WorldGenerationSettings.DefaultLandRatio, biomes);
+                WorldMap map = new HexWorldGenerator().Generate(settings);
+                renderer.Render(map);
+                yield return null;
+
+                var block = new MaterialPropertyBlock();
+                int propertyId = Shader.PropertyToID("_BaseColor");
+
+                foreach (HexTile tile in map.Tiles)
+                {
+                    if (tile.LandState != TileLandState.Land) continue;
+                    Assert.That(tile.Feature, Is.SameAs(feature),
+                        "Pre-condition: land tile should have the feature applied.");
+
+                    (int col, int row) = tile.Coord.ToOffsetOddR();
+                    Transform child = FindChildByCoord(host.transform, col, row);
+                    child.GetComponent<MeshRenderer>().GetPropertyBlock(block);
+                    Color actual = block.GetColor(propertyId);
+
+                    Assert.That(actual.r, Is.EqualTo(feature.Color.r).Within(1e-3f));
+                    Assert.That(actual.g, Is.EqualTo(feature.Color.g).Within(1e-3f));
+                    Assert.That(actual.b, Is.EqualTo(feature.Color.b).Within(1e-3f));
+                    break;
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                Object.DestroyImmediate(feature);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
+            }
+        }
+
         // ---- helpers ----
 
         private static Transform FindChildByCoord(Transform parent, int col, int row)
