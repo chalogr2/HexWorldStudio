@@ -114,5 +114,22 @@ namespace HexWorldStudio.Tests
             tile.Biome = biome;
             Assert.That(tile.Biome, Is.SameAs(biome));
         }
+
+        [Test]
+        public void Feature_DefaultsToNull()
+        {
+            var tile = new HexTile(HexCoord.Zero, 0);
+            Assert.That(tile.Feature, Is.Null);
+        }
+
+        [Test]
+        public void Feature_CanBeSetViaInternalSetter()
+        {
+            var tile = new HexTile(HexCoord.Zero, 0);
+            TileFeatureDefinition feature = ScriptableObject.CreateInstance<TileFeatureDefinition>();
+            feature.FeatureName = "TestForest";
+            tile.Feature = feature;
+            Assert.That(tile.Feature, Is.SameAs(feature));
+        }
     }
 }

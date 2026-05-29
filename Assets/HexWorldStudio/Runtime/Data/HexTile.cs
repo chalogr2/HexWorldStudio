@@ -126,6 +126,21 @@ namespace HexWorldStudio.Data
         public BiomeDefinition Biome { get; internal set; }
 
         /// <summary>
+        /// The tile-feature assigned to this tile by
+        /// <c>TileFeaturePlacementStage</c>. References a
+        /// <see cref="TileFeatureDefinition"/> drawn from the tile's
+        /// biome's <see cref="BiomeDefinition.AllowedFeatures"/> list
+        /// per ADR-0014.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <c>null</c>. After the default pipeline
+        /// completes, every land tile carries a non-null feature
+        /// (water tiles remain <c>null</c> since water biomes have
+        /// no <c>AllowedFeatures</c>).
+        /// </remarks>
+        public TileFeatureDefinition Feature { get; internal set; }
+
+        /// <summary>
         /// Constructs a tile bound to a specific coordinate and index.
         /// Called by <c>WorldMap</c> during construction; not used by
         /// buyers directly.
