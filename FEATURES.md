@@ -90,6 +90,9 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 - [~] URP demo renderer (Slice 7A): `WorldRenderer` MonoBehaviour produces one GameObject per tile, shared `HexMesh`, per-biome `Material` cache, per-tile `MaterialPropertyBlock` for color (feature color preferred over biome color), `MeshCollider` for Slice 9 raycasts. Chunked / instanced rendering deferred per FEATURES "Performance & scaling".
 - [~] Low-poly biome materials — URP/Lit material per biome with `_BaseColor` set from `BiomeDefinition.Color` (Slice 7A). Custom URP shader graphs deferred.
+- [x] Cylindrical render wrap (`WorldWrapRenderer`, Slice 8 / ADR-0015): two visual copies of the world at ±`WorldWidthInWorldUnits` with per-tile MaterialPropertyBlock copy + collider re-assertion. `WorldToCoord(worldPoint, map)` resolves hits on any copy back to the canonical coord.
+- [x] Civ-style camera controller (`CivCameraController`, Slice 8): pan (WASD / arrows / edge-scroll), zoom (scroll wheel), orbital yaw rotate (Q/E and middle-mouse drag), tilt (R/F and right-mouse drag, default 50°, clamped 30°–65°). Soft vertical bounds; horizontal wrap normalization. Reads input through `ICameraInput`.
+- [x] Input abstraction (`ICameraInput` + `LegacyUnityInputProvider` in `Runtime/Input/`, Slice 8): public interface buyers swap to migrate to the new Input System.
 - [ ] Non-navigable river ribbon meshes (along edges)
 - [ ] Navigable river tile geometry/material (per-tile)
 - [ ] Resource prop placement
@@ -97,7 +100,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## Demo Scenes
 
-- [~] "Quick Start" scene (Slice 7A): hand-authored `Examples/QuickStart/QuickStartScene.unity` ships with a Bootstrap GameObject pre-wired to the 7 default biome assets and the `WorldRenderer`. Press Play to see a 32×20 world. Regenerate button comes when settings UI lands.
+- [~] "Quick Start" scene (Slice 7A + Slice 8): hand-authored `Examples/QuickStart/QuickStartScene.unity` ships with a Bootstrap GameObject pre-wired to the 7 default biome assets, the `WorldRenderer`, and a `WorldWrapRenderer`. Main camera carries `LegacyUnityInputProvider` + `CivCameraController` (Civ-style pan / zoom / orbital rotate / tilt). Press Play to fly around the generated world. Regenerate button comes when settings UI lands.
 - [ ] "Earth-like" preset showcase
 - [ ] "Archipelago" preset showcase
 - [ ] "Frozen World" preset showcase
