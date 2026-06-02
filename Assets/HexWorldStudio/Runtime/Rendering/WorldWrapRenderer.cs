@@ -138,11 +138,32 @@ namespace HexWorldStudio.Rendering
             // Instantiate copies all components (MeshFilter, MeshRenderer,
             // MeshCollider). It does NOT copy per-renderer property blocks
             // — those live outside the serialized state — so we replay
-            // them manually below.
+            // them manually below. Mesh references on MeshFilter and
+            // MeshCollider can also fail to round-trip cleanly when the
+            // source mesh was created at runtime; re-assert them
+            // explicitly so the cloned collider is hittable.
             GameObject clone = Object.Instantiate(sourceChild.gameObject, copyContainer, worldPositionStays: false);
             clone.name = sourceChild.name; // strip the "(Clone)" suffix
 
             CopyPropertyBlock(sourceChild.gameObject, clone);
+            ReassertSharedMeshes(sourceChild.gameObject, clone);
+        }
+
+        private static void ReassertSharedMeshes(GameObject source, GameObject destination)
+        {
+            var srcFilter = source.GetComponent<MeshFilter>();
+            var dstFilter = destination.GetComponent<MeshFilter>();
+            if (srcFilter != null && dstFilter != null && dstFilter.sharedMesh != srcFilter.sharedMesh)
+            {
+                dstFilter.sharedMesh = srcFilter.sharedMesh;
+            }
+
+            var srcCollider = source.GetComponent<MeshCollider>();
+            var dstCollider = destination.GetComponent<MeshCollider>();
+            if (srcCollider != null && dstCollider != null && dstCollider.sharedMesh != srcCollider.sharedMesh)
+            {
+                dstCollider.sharedMesh = srcCollider.sharedMesh;
+            }
         }
 
         // MaterialPropertyBlock cannot be created in a static field
