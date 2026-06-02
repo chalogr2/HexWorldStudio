@@ -111,9 +111,13 @@ namespace HexWorldStudio.Tests
                 var lr = go.GetComponent<LineRenderer>();
                 Assert.That(lr.startWidth, Is.EqualTo(0.12f).Within(1e-5f));
                 Assert.That(lr.endWidth, Is.EqualTo(0.12f).Within(1e-5f));
-                Assert.That(lr.startColor.r, Is.EqualTo(0.2f).Within(1e-5f));
-                Assert.That(lr.startColor.g, Is.EqualTo(0.6f).Within(1e-5f));
-                Assert.That(lr.startColor.b, Is.EqualTo(0.9f).Within(1e-5f));
+                // LineRenderer encodes color via an 8-bit gradient so
+                // each channel can land within one 1/255 step of the
+                // requested float.
+                const float channelTolerance = 1f / 255f;
+                Assert.That(lr.startColor.r, Is.EqualTo(0.2f).Within(channelTolerance));
+                Assert.That(lr.startColor.g, Is.EqualTo(0.6f).Within(channelTolerance));
+                Assert.That(lr.startColor.b, Is.EqualTo(0.9f).Within(channelTolerance));
             }
             finally
             {
