@@ -55,5 +55,21 @@ namespace HexWorldStudio.Input
 
         /// <summary>Mouse cursor position in pixels, origin at the bottom-left.</summary>
         Vector2 MousePosition { get; }
+
+        /// <summary>
+        /// True only on the frame the primary mouse button (left) just
+        /// transitioned from up to down. Mirrors
+        /// <c>UnityEngine.Input.GetMouseButtonDown(0)</c> for the
+        /// legacy provider. Implementations on top of the new Input
+        /// System should expose the same frame-of-press semantics.
+        /// </summary>
+        bool PrimaryClickPressed { get; }
+
+        /// <summary>
+        /// True only on the frame the secondary mouse button (right)
+        /// just transitioned from up to down. Mirrors
+        /// <c>UnityEngine.Input.GetMouseButtonDown(1)</c>.
+        /// </summary>
+        bool SecondaryClickPressed { get; }
     }
 }

@@ -93,6 +93,12 @@ namespace HexWorldStudio.Input
         /// <inheritdoc/>
         public Vector2 MousePosition => UnityInput.mousePosition;
 
+        /// <inheritdoc/>
+        public bool PrimaryClickPressed => UnityInput.GetMouseButtonDown(0);
+
+        /// <inheritdoc/>
+        public bool SecondaryClickPressed => UnityInput.GetMouseButtonDown(1);
+
         // Returns +1 if any "positive" key is held, -1 if any "negative" key is held, 0 otherwise.
         private static float AxisFromKeys(params KeyCode[] keys)
         {
