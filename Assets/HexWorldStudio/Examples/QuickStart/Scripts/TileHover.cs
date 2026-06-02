@@ -172,7 +172,7 @@ namespace HexWorldStudio.Examples.QuickStart
 
             if (newCoord.HasValue)
             {
-                _outline.transform.position = hitWorldPos;
+                if (_outline != null) _outline.transform.position = hitWorldPos;
                 SetOutlineVisible(true);
             }
             else

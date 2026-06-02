@@ -39,11 +39,17 @@ namespace HexWorldStudio.Rendering
             lr.endWidth = width;
 
             // Built-in unlit color shader; doesn't depend on URP material
-            // graph or biome material cache. Renders on top of opaque
-            // geometry because the default LineRenderer queue is at
-            // transparent.
-            Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Unlit/Color");
-            lr.material = new Material(shader);
+            // graph or biome material cache. In -nographics batch mode
+            // Shader.Find can return null because shaders aren't
+            // loaded — skip the material assignment in that case and
+            // leave LineRenderer with its default material. The
+            // outline geometry stays valid for tests and buyer code
+            // that inspects positions / loop / vertex count regardless
+            // of headless rendering.
+            Shader shader = Shader.Find("Sprites/Default")
+                         ?? Shader.Find("Unlit/Color")
+                         ?? Shader.Find("Standard");
+            if (shader != null) lr.material = new Material(shader);
             lr.startColor = color;
             lr.endColor = color;
 
