@@ -100,7 +100,11 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## Demo Scenes
 
-- [~] "Quick Start" scene (Slice 7A + Slice 8): hand-authored `Examples/QuickStart/QuickStartScene.unity` ships with a Bootstrap GameObject pre-wired to the 7 default biome assets, the `WorldRenderer`, and a `WorldWrapRenderer`. Main camera carries `LegacyUnityInputProvider` + `CivCameraController` (Civ-style pan / zoom / orbital rotate / tilt). Press Play to fly around the generated world. Regenerate button comes when settings UI lands.
+- [~] "Quick Start" scene (Slice 7A + Slice 8 + Slice 9): hand-authored `Examples/QuickStart/QuickStartScene.unity` ships with a Bootstrap GameObject pre-wired to the 7 default biome assets, the `WorldRenderer`, and a `WorldWrapRenderer`. Main camera carries `LegacyUnityInputProvider` + `CivCameraController` (Civ-style pan / zoom / orbital rotate / tilt). A new `TileInteraction` GameObject hosts `TileHover` (hex outline follows cursor, hover-duration timer for Slice 10 tooltip) and `TileSelection` (primary-click selects, right-click clears, regenerate clears). Press Play to fly around, hover, and select. Regenerate button comes when settings UI lands.
+- [x] Hex-outline overlay helper (`HexOutline.Create`, Slice 9 / ADR-0016) — closed `LineRenderer` outline at `OuterRadius`, used by hover and selection layers.
+- [x] Per-tile coord lookup component (`HexTileBinding`, Slice 9 / ADR-0016) — `WorldRenderer` attaches one per tile so picking is a constant-time component lookup.
+- [x] Hover layer (`TileHover`, Slice 9): camera-raycast picking with `WorldWrapRenderer.WorldToCoord` math fallback; per-tile outline; `HoverDuration` exposed for tooltip work.
+- [x] Selection layer (`TileSelection`, Slice 9): primary click commits, secondary clears, `WorldGeneratorBootstrap.OnRegenerated` clears stale state.
 - [ ] "Earth-like" preset showcase
 - [ ] "Archipelago" preset showcase
 - [ ] "Frozen World" preset showcase
