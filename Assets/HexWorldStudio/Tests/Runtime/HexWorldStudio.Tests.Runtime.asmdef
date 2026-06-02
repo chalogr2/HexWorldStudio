@@ -2,7 +2,8 @@
     "name": "HexWorldStudio.Tests.Runtime",
     "rootNamespace": "HexWorldStudio.Tests",
     "references": [
-        "HexWorldStudio.Runtime"
+        "HexWorldStudio.Runtime",
+        "HexWorldStudio.Examples.QuickStart"
     ],
     "optionalUnityReferences": [
         "TestAssemblies"
