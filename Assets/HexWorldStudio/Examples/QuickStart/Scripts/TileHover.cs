@@ -55,7 +55,7 @@ namespace HexWorldStudio.Examples.QuickStart
         /// when nothing is hovered. Slice 10's tooltip reads this
         /// directly to decide when to reveal.
         /// </summary>
-        public float HoverDuration => _hoveredCoord.HasValue ? (Time.time - _hoverStartTime) : 0f;
+        public float HoverDuration => _hoveredCoord.HasValue ? (Time.realtimeSinceStartup - _hoverStartTime) : 0f;
 
         /// <summary>Fires when the hovered coord changes (including transitions to / from null).</summary>
         public event Action<HexCoord?> OnHoverChanged;
@@ -166,7 +166,7 @@ namespace HexWorldStudio.Examples.QuickStart
             if (changed)
             {
                 _hoveredCoord = newCoord;
-                _hoverStartTime = newCoord.HasValue ? Time.time : 0f;
+                _hoverStartTime = newCoord.HasValue ? Time.realtimeSinceStartup : 0f;
                 OnHoverChanged?.Invoke(_hoveredCoord);
             }
 
