@@ -46,7 +46,15 @@ namespace HexWorldStudio.Rendering
         [SerializeField] private bool _generateOnStart = true;
 
         /// <summary>The most recent <see cref="WorldMap"/> produced by <see cref="Regenerate"/>.</summary>
-        public WorldMap LatestMap { get; private set; }
+        public WorldMap LatestMap { get; internal set; }
+
+        /// <summary>
+        /// Fires at the end of every successful <see cref="Regenerate"/>
+        /// call. Buyer scripts subscribe to clear per-tile UI state
+        /// (selection, hover, custom overlays) tied to the previous
+        /// world.
+        /// </summary>
+        public event System.Action OnRegenerated;
 
         private void Start()
         {
@@ -85,6 +93,8 @@ namespace HexWorldStudio.Rendering
                 _wrapRenderer.WorldTileWidth = LatestMap.Width;
                 _wrapRenderer.Refresh();
             }
+
+            OnRegenerated?.Invoke();
         }
     }
 }

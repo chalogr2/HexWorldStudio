@@ -57,6 +57,15 @@ namespace HexWorldStudio.Examples.QuickStart
         /// </summary>
         public float HoverDuration => _hoveredCoord.HasValue ? (Time.realtimeSinceStartup - _hoverStartTime) : 0f;
 
+        /// <summary>
+        /// World-space position of the currently hovered tile (the
+        /// anchor point used by the hover outline). Useful for
+        /// downstream visuals like the selection outline.
+        /// Defaults to <see cref="Vector3.zero"/> when nothing is
+        /// hovered.
+        /// </summary>
+        public Vector3 HoveredWorldPosition { get; private set; }
+
         /// <summary>Fires when the hovered coord changes (including transitions to / from null).</summary>
         public event Action<HexCoord?> OnHoverChanged;
 
@@ -172,11 +181,13 @@ namespace HexWorldStudio.Examples.QuickStart
 
             if (newCoord.HasValue)
             {
+                HoveredWorldPosition = hitWorldPos;
                 if (_outline != null) _outline.transform.position = hitWorldPos;
                 SetOutlineVisible(true);
             }
             else
             {
+                HoveredWorldPosition = Vector3.zero;
                 SetOutlineVisible(false);
             }
         }
@@ -187,6 +198,7 @@ namespace HexWorldStudio.Examples.QuickStart
             {
                 _hoveredCoord = null;
                 _hoverStartTime = 0f;
+                HoveredWorldPosition = Vector3.zero;
                 OnHoverChanged?.Invoke(null);
             }
             SetOutlineVisible(false);
