@@ -183,7 +183,8 @@ namespace HexWorldStudio.Tests.Runtime
                 Vector2 screen = f.Camera.WorldToScreenPoint(targetWorld);
                 f.Input.MousePositionValue = screen;
                 Physics.SyncTransforms();
-                yield return null; // give TileHover.Update one frame to run
+                f.Hover.Tick();
+                yield return null;
 
                 Assert.That(f.Hover.HoveredCoord.HasValue, Is.True,
                     "Expected the cursor over the tile to produce a hovered coord.");
@@ -205,6 +206,7 @@ namespace HexWorldStudio.Tests.Runtime
                 // intersection on the map side.
                 f.Input.MousePositionValue = new Vector2(-1000f, -1000f);
                 Physics.SyncTransforms();
+                f.Hover.Tick();
                 yield return null;
 
                 Assert.That(f.Hover.HoveredCoord.HasValue, Is.False);
@@ -224,12 +226,16 @@ namespace HexWorldStudio.Tests.Runtime
                 Vector3 targetWorld = HexMesh.WorldPosition(4, 3, 0, 0.15f);
                 f.Input.MousePositionValue = f.Camera.WorldToScreenPoint(targetWorld);
                 Physics.SyncTransforms();
+                f.Hover.Tick();
                 yield return null;
                 float firstSample = f.Hover.HoverDuration;
 
-                // Hold the same cursor position for two more frames.
+                // Hold the same cursor position across two more frames
+                // and Ticks; HoverDuration should grow with Time.time.
                 yield return null;
+                f.Hover.Tick();
                 yield return null;
+                f.Hover.Tick();
                 float laterSample = f.Hover.HoverDuration;
 
                 Assert.That(laterSample, Is.GreaterThan(firstSample),
@@ -252,14 +258,16 @@ namespace HexWorldStudio.Tests.Runtime
                 Vector3 firstWorld = HexMesh.WorldPosition(2, 2, 0, 0.15f);
                 f.Input.MousePositionValue = f.Camera.WorldToScreenPoint(firstWorld);
                 Physics.SyncTransforms();
+                f.Hover.Tick();
                 yield return null;
-                yield return null;
+                f.Hover.Tick();
                 float durationBeforeChange = f.Hover.HoverDuration;
 
                 HexCoord second = HexCoordExtensions.FromOffsetOddR(5, 4);
                 Vector3 secondWorld = HexMesh.WorldPosition(5, 4, 0, 0.15f);
                 f.Input.MousePositionValue = f.Camera.WorldToScreenPoint(secondWorld);
                 yield return null;
+                f.Hover.Tick();
                 float durationAfterChange = f.Hover.HoverDuration;
 
                 Assert.That(changeLog.Count, Is.GreaterThanOrEqualTo(2),

@@ -69,6 +69,19 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void Update()
         {
+            Tick();
+        }
+
+        /// <summary>
+        /// One step of the hover loop. Normally driven by
+        /// <see cref="Update"/> every frame; exposed publicly so
+        /// tests and buyer scripts can advance the state machine
+        /// deterministically (the editor's MonoBehaviour auto-update
+        /// doesn't always fire on runtime-AddComponent'd instances
+        /// inside EditMode-driven test fixtures).
+        /// </summary>
+        public void Tick()
+        {
             // Resolve input lazily — Awake may run before _inputSource
             // has been wired (tests AddComponent the controller then
             // populate fields; buyer scripts may do the same).
