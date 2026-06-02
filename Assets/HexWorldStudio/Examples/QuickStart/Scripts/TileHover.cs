@@ -62,7 +62,6 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void Awake()
         {
-            ResolveInput();
             _outline = HexOutline.Create("HoverOutline", _outlineColor, _outlineWidth);
             _outline.transform.SetParent(transform, worldPositionStays: false);
             SetOutlineVisible(false);
@@ -70,6 +69,10 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void Update()
         {
+            // Resolve input lazily — Awake may run before _inputSource
+            // has been wired (tests AddComponent the controller then
+            // populate fields; buyer scripts may do the same).
+            if (_input == null) ResolveInput();
             if (_input == null || _camera == null) { ClearHover(); return; }
             if (!_input.IsMouseInWindow) { ClearHover(); return; }
 
