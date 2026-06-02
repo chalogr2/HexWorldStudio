@@ -357,3 +357,31 @@ Per-biome allow-lists give buyers full control over which features can appear in
   - Snow → Snowfield, Forest, Hill, Mountain, Rocky
 - Default `PreferredElevationLevel` per feature: Grassland / Savannah / Desert / Snowfield 1, Forest 2, Hill 3, Rocky 3, Mountain 5.
 - Default `Weight` per feature: flat-terrain types 2.0, Forest 1.5, Hill 1.0, Rocky 0.6, Mountain 0.5 — biases toward flat terrain at default elevations while still producing visible mountains and hills.
+
+---
+
+## ADR-0015 — Cylindrical render wrap via shifted GameObject clones + camera-position normalization
+
+**Date:** 2026-06-02
+**Status:** Accepted
+
+**Decision:**
+The cylindrical map topology established by ADR-0009 (`WorldMap` horizontal wrap) is reflected in the rendered scene by `WorldWrapRenderer`: alongside the canonical world rendered by `WorldRenderer`, two visual *copies* of the rendered tiles are produced and positioned at `-WorldWidthInWorldUnits` and `+WorldWidthInWorldUnits` along the X axis. As the camera scrolls horizontally, the appropriate copy is always in view at the seam, making the world appear infinite. When the camera's X position exceeds `±WorldWidthInWorldUnits`, the `CivCameraController` normalizes the position back into the canonical range — the visible scene stays continuous because the copies cover the transition.
+
+Copy tiles are produced via `UnityEngine.Object.Instantiate` of the canonical tile GameObjects (shared meshes and materials via Unity's standard reference semantics) followed by a `MaterialPropertyBlock` copy from the source `MeshRenderer` to the clone. Each copy tile also receives its own `MeshCollider` so Slice 9 raycasts hit any visible tile regardless of which copy it belongs to; the canonical `HexCoord` is recovered via the new `WorldWrapRenderer.WorldToCoord` helper.
+
+**Alternatives considered:**
+
+- *Per-frame `Graphics.DrawMesh` from the canonical mesh + transform matrix per copy.* Zero GameObject overhead, supports unlimited copies cheaply. Rejected for v1 because it skips the GameObject path entirely — colliders for Slice 9 raycasts and any per-tile component attachments (selection markers, props) would need a parallel mechanism. Worth revisiting if perf surfaces on large maps.
+- *Camera teleport without copies* — pop the camera back to canonical X on boundary crossings. Visible jitter at the seam unless paired with copies anyway. Rejected.
+- *Infinite copies generated on demand.* Memory unbounded for long pans. Two copies are enough because the camera is always within one `WorldWidth` of the canonical world after normalization.
+- *Single instanced draw call* (`Graphics.DrawMeshInstanced`). Best perf but breaks per-tile materials, property blocks, and colliders. Deferred to a perf-pass slice if needed.
+
+**Reasoning:**
+GameObject clones match the Slice 7 rendering strategy (per-tile GameObject + per-tile collider + per-tile property block) without introducing a parallel rendering path. For the demo-size maps the project targets in v1 (≤ ~30×30), the 3× memory cost is trivial. The copies update in lockstep with `WorldRenderer.Render` by recopying the property blocks, so per-tile color changes (biome / feature) flow into the copies automatically.
+
+**Implementation note:**
+- `WorldWrapRenderer.Refresh()` rebuilds copies from the canonical world's children every time it's called. Idempotent: calling twice produces the same final state. Bootstrap calls it after every `WorldRenderer.Render`.
+- Copies are children of two empty GameObjects ("WrapCopyLeft", "WrapCopyRight") sitting as siblings of the canonical world in the renderer's transform hierarchy.
+- `WorldToCoord(Vector3 worldPoint, WorldMap map)` reverses the `HexMesh.WorldPosition` math, applies `WorldMap.Normalize`, and returns the canonical `HexCoord`. Land on the wrong tile near edges is acceptable for hover queries since Slice 9 raycasts hit specific GameObjects directly; the helper is the slower-path fallback for hit points that don't correspond to a GameObject (e.g., overlays).
+- Camera-position normalization lives in `CivCameraController` (not in `WorldWrapRenderer`) so the wrap renderer stays single-responsibility (visuals only).
