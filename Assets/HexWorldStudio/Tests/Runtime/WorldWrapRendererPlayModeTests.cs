@@ -159,17 +159,28 @@ namespace HexWorldStudio.Tests.Runtime
                 Transform anyCopyTile = null;
                 for (int i = 0; i < right.childCount; i++)
                 {
-                    if (right.GetChild(i).GetComponent<MeshCollider>() != null)
+                    Transform child = right.GetChild(i);
+                    var collider = child.GetComponent<MeshCollider>();
+                    if (collider != null && collider.sharedMesh != null)
                     {
-                        anyCopyTile = right.GetChild(i);
+                        anyCopyTile = child;
                         break;
                     }
                 }
                 Assert.That(anyCopyTile, Is.Not.Null,
-                    "Expected at least one copy tile with a MeshCollider.");
+                    "Expected at least one copy tile with a MeshCollider whose sharedMesh is set.");
 
-                // Cast straight down onto the tile from above.
-                Vector3 origin = anyCopyTile.position + Vector3.up * 5f;
+                // Force-sync the physics world so the just-instantiated
+                // colliders are visible to Raycast queries in this same
+                // frame (Unity does this automatically on FixedUpdate,
+                // but PlayMode tests query before then).
+                Physics.SyncTransforms();
+
+                // Cast straight down onto the tile from above. Use a
+                // slightly-forward offset (toward +X) so the ray hits a
+                // ring vertex's interior rather than the exact center
+                // vertex where flat-mesh raycast precision is weakest.
+                Vector3 origin = anyCopyTile.position + new Vector3(0.2f, 5f, 0.2f);
                 bool hit = Physics.Raycast(origin, Vector3.down, out RaycastHit info, 20f);
 
                 Assert.That(hit, Is.True, "Raycast missed all copy tiles.");
