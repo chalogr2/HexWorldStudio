@@ -385,3 +385,36 @@ GameObject clones match the Slice 7 rendering strategy (per-tile GameObject + pe
 - Copies are children of two empty GameObjects ("WrapCopyLeft", "WrapCopyRight") sitting as siblings of the canonical world in the renderer's transform hierarchy.
 - `WorldToCoord(Vector3 worldPoint, WorldMap map)` reverses the `HexMesh.WorldPosition` math, applies `WorldMap.Normalize`, and returns the canonical `HexCoord`. Land on the wrong tile near edges is acceptable for hover queries since Slice 9 raycasts hit specific GameObjects directly; the helper is the slower-path fallback for hit points that don't correspond to a GameObject (e.g., overlays).
 - Camera-position normalization lives in `CivCameraController` (not in `WorldWrapRenderer`) so the wrap renderer stays single-responsibility (visuals only).
+
+---
+
+## ADR-0016 — Tile interaction: `HexTileBinding` lookup + hexagonal-outline overlays + raycast-first picking
+
+**Date:** 2026-06-02
+**Status:** Accepted
+
+**Decision:**
+Tile picking and visual highlight for hover / selection in Slice 9 use three components:
+
+1. **`HexTileBinding`** — a small public MonoBehaviour attached by `WorldRenderer` to every canonical tile GameObject, carrying the canonical `HexCoord`. Survives `Object.Instantiate` cleanly on wrap copies (plain serialized state). Picking resolves a hit GameObject to a canonical coord by reading `HexTileBinding.Coord`.
+
+2. **Raycast-first picking with a math fallback.** Each frame the picker constructs a ray from the camera through the mouse cursor, calls `Physics.Raycast` against any `MeshCollider`, and if the hit GameObject carries a `HexTileBinding` returns its coord. When the raycast misses entirely (PhysX flat-mesh quirk on planar hex colliders — caught in Slice 8's audit), the picker falls back to projecting the ray onto the `Y = 0` plane and calling `WorldWrapRenderer.WorldToCoord`. The math fallback only fires when the raycast misses, so elevated tiles use the precise raycast path and don't get aliased to the ground-plane intersection.
+
+3. **Hexagonal-outline overlays** rendered with `LineRenderer`. Two GameObjects: a thinner light outline that follows the hovered tile, a thicker bright outline that pins to the selected tile. The outlines are repositioned each frame to whichever tile is hovered / selected (or hidden when no tile applies). The tile's own `MaterialPropertyBlock` is never touched, so biome / feature color flow stays intact.
+
+**Alternatives considered:**
+
+- *MaterialPropertyBlock color tint* (multiplier on `_BaseColor`). Would have worked but required caching the tile's pre-hover color, restoring on hover-out, and racing against any future per-frame renderer updates. The outline approach decouples interaction visuals from tile materials entirely. Rejected after user feedback in the Slice 9 proposal round.
+- *Outline shader on the tile material* (URP shader graph variant). Visually richer but requires per-pipeline shader work and a custom material per tile. Out of scope for v1's "no custom shaders" stance per ADR-0002.
+- *Picking via GameObject name parsing* (`"Tile_3_5"` → `HexCoord(3, 5)`). Works but brittle. `HexTileBinding` is the clean alternative and survives Instantiate without parsing.
+- *Math-only picking* (skip raycast, always project to `Y = 0` and call `WorldToCoord`). Loses elevation precision (a 5-step mountain hovered near its base could resolve to the wrong tile behind it). Rejected.
+
+**Reasoning:**
+The interaction stack divides cleanly into three problems: identify which tile is under the cursor, show feedback, react to clicks. `HexTileBinding` makes the first problem a constant-time component lookup on the raycast hit. The outline overlay makes the second problem a transform-update on a single GameObject (no shader work, no material clones, no per-tile per-frame branching). The third problem — clicks — is just frame-of-press input read through `ICameraInput` extended with `PrimaryClickPressed` and `SecondaryClickPressed`. Each layer is testable in isolation.
+
+**Implementation note:**
+- `HexTileBinding` is `public` and lives in `Runtime/Rendering/` next to the renderer that attaches it.
+- `HexOutline.Create(name, color, width)` is a public static factory in `Runtime/Rendering/` that builds a `LineRenderer` GameObject configured as a closed 6-point hex outline at `OuterRadius` distance from origin, with a slight `+Y` offset (`0.05`) so it draws above the tile mesh. `LineRenderer.loop = true` closes the outline implicitly.
+- `TileHover` and `TileSelection` live in `Examples/QuickStart/Scripts/` since the visual treatment is opinionated demo content; buyers copy and customize. Both depend on `HexTileBinding`, `HexOutline`, `WorldWrapRenderer` (for the math fallback), `WorldGeneratorBootstrap` (for `LatestMap`), and an `ICameraInput`.
+- Selection state clears on `Regenerate` (via a `WorldGeneratorBootstrap.OnRegenerated` event added in this slice).
+- Hover duration timer resets on every hover change and exposes `HoverDuration` for Slice 10's 2.5s-delay tooltip.
