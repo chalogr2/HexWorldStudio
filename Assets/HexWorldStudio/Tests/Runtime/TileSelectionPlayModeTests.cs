@@ -107,6 +107,18 @@ namespace HexWorldStudio.Tests.Runtime
             f.Wrap.Refresh();
             f.Bootstrap.LatestMap = f.Map;
 
+            // Wire Bootstrap's inspector fields so the Regenerate test
+            // (which actually calls Bootstrap.Regenerate to fire the
+            // OnRegenerated event) finds non-empty biomes and valid
+            // dimensions.
+            WireField(f.Bootstrap, "_width", Width);
+            WireField(f.Bootstrap, "_height", Height);
+            WireField(f.Bootstrap, "_seed", Seed);
+            WireField(f.Bootstrap, "_landRatio", WorldGenerationSettings.DefaultLandRatio);
+            WireField(f.Bootstrap, "_biomes", f.Biomes);
+            WireField(f.Bootstrap, "_renderer", f.Renderer);
+            WireField(f.Bootstrap, "_wrapRenderer", f.Wrap);
+
             f.CameraGO = new GameObject("SelectionCamera");
             f.Camera = f.CameraGO.AddComponent<Camera>();
             f.Camera.orthographic = true;
@@ -140,7 +152,7 @@ namespace HexWorldStudio.Tests.Runtime
             foreach (BiomeDefinition b in f.Biomes) Object.DestroyImmediate(b);
         }
 
-        private static void WireField(MonoBehaviour target, string field, UnityEngine.Object value)
+        private static void WireField(MonoBehaviour target, string field, object value)
         {
             var fi = target.GetType().GetField(field,
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
