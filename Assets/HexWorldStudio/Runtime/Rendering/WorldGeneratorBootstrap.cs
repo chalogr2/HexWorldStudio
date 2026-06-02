@@ -38,6 +38,9 @@ namespace HexWorldStudio.Rendering
         [Tooltip("World renderer that will draw the generated map. If null, this script searches its own GameObject and children.")]
         [SerializeField] private WorldRenderer _renderer;
 
+        [Tooltip("Optional wrap renderer. When set, Regenerate() refreshes it after rendering so the cylindrical wrap stays in sync.")]
+        [SerializeField] private WorldWrapRenderer _wrapRenderer;
+
         [Header("Behavior")]
         [Tooltip("Automatically generate on Start. Disable to drive Regenerate() from your own code.")]
         [SerializeField] private bool _generateOnStart = true;
@@ -75,6 +78,13 @@ namespace HexWorldStudio.Rendering
             var settings = new WorldGenerationSettings(_width, _height, _seed, _landRatio, _biomes);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
+
+            if (_wrapRenderer == null) _wrapRenderer = GetComponent<WorldWrapRenderer>();
+            if (_wrapRenderer != null)
+            {
+                _wrapRenderer.WorldTileWidth = LatestMap.Width;
+                _wrapRenderer.Refresh();
+            }
         }
     }
 }
