@@ -65,9 +65,22 @@ namespace HexWorldStudio.Rendering
             Clear();
             if (_renderer == null || _worldTileWidth <= 0) return;
 
+            // Snapshot the canonical world's children BEFORE creating
+            // the new copy containers. WorldWrapRenderer commonly lives
+            // on the same GameObject as WorldRenderer, so without the
+            // snapshot the second container would also clone the first
+            // (off-by-one bug).
+            Transform sourceRoot = _renderer.transform;
+            int sourceCount = sourceRoot.childCount;
+            var sourceChildren = new List<Transform>(sourceCount);
+            for (int i = 0; i < sourceCount; i++)
+            {
+                sourceChildren.Add(sourceRoot.GetChild(i));
+            }
+
             float dx = WorldWidthInWorldUnits;
-            _leftCopy  = BuildCopyContainer("WrapCopyLeft",  new Vector3(-dx, 0f, 0f));
-            _rightCopy = BuildCopyContainer("WrapCopyRight", new Vector3(+dx, 0f, 0f));
+            _leftCopy  = BuildCopyContainer("WrapCopyLeft",  new Vector3(-dx, 0f, 0f), sourceChildren);
+            _rightCopy = BuildCopyContainer("WrapCopyRight", new Vector3(+dx, 0f, 0f), sourceChildren);
         }
 
         /// <summary>Destroys both wrap copy containers and their children.</summary>
@@ -105,17 +118,15 @@ namespace HexWorldStudio.Rendering
             return map != null ? map.Normalize(raw) : raw;
         }
 
-        private GameObject BuildCopyContainer(string name, Vector3 localOffset)
+        private GameObject BuildCopyContainer(string name, Vector3 localOffset, List<Transform> sourceChildren)
         {
             var container = new GameObject(name);
             container.transform.SetParent(transform, worldPositionStays: false);
             container.transform.localPosition = localOffset;
 
-            Transform sourceRoot = _renderer.transform;
-            int sourceChildCount = sourceRoot.childCount;
-            for (int i = 0; i < sourceChildCount; i++)
+            for (int i = 0; i < sourceChildren.Count; i++)
             {
-                Transform sourceChild = sourceRoot.GetChild(i);
+                Transform sourceChild = sourceChildren[i];
                 if (sourceChild == null) continue;
                 CloneTileInto(sourceChild, container.transform);
             }
