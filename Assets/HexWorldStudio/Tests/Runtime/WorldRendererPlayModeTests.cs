@@ -241,6 +241,37 @@ namespace HexWorldStudio.Tests.Runtime
         }
 
         [UnityTest]
+        public IEnumerator Render_EveryTile_HasHexTileBindingWithMatchingCoord()
+        {
+            BiomeDefinition[] biomes = (BiomeDefinition[])MinimalBiomeSet(out _, out _, out _);
+            GameObject host = NewRendererHost(out WorldRenderer renderer);
+            try
+            {
+                var settings = new WorldGenerationSettings(Width, Height, Seed,
+                    WorldGenerationSettings.DefaultLandRatio, biomes);
+                WorldMap map = new HexWorldGenerator().Generate(settings);
+                renderer.Render(map);
+                yield return null;
+
+                foreach (HexTile tile in map.Tiles)
+                {
+                    (int col, int row) = tile.Coord.ToOffsetOddR();
+                    Transform child = FindChildByCoord(host.transform, col, row);
+                    var binding = child.GetComponent<HexWorldStudio.Rendering.HexTileBinding>();
+                    Assert.That(binding, Is.Not.Null,
+                        $"Tile ({col},{row}) missing HexTileBinding.");
+                    Assert.That(binding.Coord, Is.EqualTo(tile.Coord),
+                        $"Tile ({col},{row}) HexTileBinding.Coord != HexTile.Coord.");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator Render_TileColor_PrefersFeatureColorOverBiomeColor()
         {
             BiomeDefinition[] biomes = (BiomeDefinition[])MinimalBiomeSet(

@@ -146,6 +146,13 @@ namespace HexWorldStudio.Rendering
             go.transform.localPosition = worldPos;
             go.transform.localScale = Vector3.one * _tileWorldScale;
 
+            // Attach the canonical-coord binding so picking can resolve
+            // a raycast hit back to a HexCoord in constant time
+            // (ADR-0016). Survives Instantiate on wrap copies because
+            // Coord is plain serialized state.
+            var binding = go.AddComponent<HexTileBinding>();
+            binding.Coord = tile.Coord;
+
             var filter = go.AddComponent<MeshFilter>();
             filter.sharedMesh = _sharedMesh;
 
