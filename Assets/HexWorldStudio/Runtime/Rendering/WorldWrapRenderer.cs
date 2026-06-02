@@ -134,7 +134,11 @@ namespace HexWorldStudio.Rendering
             CopyPropertyBlock(sourceChild.gameObject, clone);
         }
 
-        private static readonly MaterialPropertyBlock s_blockBuffer = new MaterialPropertyBlock();
+        // MaterialPropertyBlock cannot be created in a static field
+        // initializer — Unity throws TypeInitializationException for
+        // the same reason it rejects MonoBehaviour field initializers.
+        // Constructed lazily on first use.
+        private static MaterialPropertyBlock s_blockBuffer;
 
         private static void CopyPropertyBlock(GameObject source, GameObject destination)
         {
@@ -142,6 +146,7 @@ namespace HexWorldStudio.Rendering
             var destMR = destination.GetComponent<MeshRenderer>();
             if (sourceMR == null || destMR == null) return;
 
+            if (s_blockBuffer == null) s_blockBuffer = new MaterialPropertyBlock();
             sourceMR.GetPropertyBlock(s_blockBuffer);
             destMR.SetPropertyBlock(s_blockBuffer);
         }
