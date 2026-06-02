@@ -113,12 +113,20 @@ namespace HexWorldStudio.Tests.Runtime
             SetBootstrapLatestMap(f.Bootstrap, f.Map);
 
             // Camera positioned above the world looking straight down.
+            // Orthographic projection so screen-pixel ↔ world-position
+            // mapping is well-defined regardless of how Unity's batch-
+            // mode display is configured. A RenderTexture target gives
+            // the camera an explicit pixel rect (otherwise pixelWidth /
+            // pixelHeight can be 0 in headless tests, breaking
+            // ScreenPointToRay / WorldToScreenPoint).
             f.CameraGO = new GameObject("HoverCamera");
             f.Camera = f.CameraGO.AddComponent<Camera>();
-            f.Camera.orthographic = false;
-            f.Camera.fieldOfView = 60f;
+            f.Camera.orthographic = true;
+            f.Camera.orthographicSize = 8f;
+            f.Camera.aspect = 1f;
             f.Camera.nearClipPlane = 0.1f;
             f.Camera.farClipPlane = 200f;
+            f.Camera.targetTexture = new RenderTexture(512, 512, 16);
             f.CameraGO.transform.position = new Vector3(7f, 30f, 4.5f);
             f.CameraGO.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // look straight down
 
@@ -135,6 +143,12 @@ namespace HexWorldStudio.Tests.Runtime
 
         private static void Teardown(HoverFixture f)
         {
+            if (f.Camera != null && f.Camera.targetTexture != null)
+            {
+                RenderTexture rt = f.Camera.targetTexture;
+                f.Camera.targetTexture = null;
+                Object.DestroyImmediate(rt);
+            }
             if (f.InteractionGO != null) Object.DestroyImmediate(f.InteractionGO);
             if (f.CameraGO != null) Object.DestroyImmediate(f.CameraGO);
             if (f.RendererHost != null) Object.DestroyImmediate(f.RendererHost);
