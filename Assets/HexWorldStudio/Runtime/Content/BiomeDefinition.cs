@@ -87,6 +87,35 @@ namespace HexWorldStudio.Content
         public TileFeatureDefinition[] AllowedFeatures;
 
         /// <summary>
+        /// Optional visual prefab. When non-null, the default
+        /// <c>WorldRenderer</c> instantiates this prefab as a child
+        /// of every tile that carries this biome (unless the tile's
+        /// <see cref="TileFeatureDefinition.Prefab"/> overrides it).
+        /// When null, the renderer falls back to its procedural
+        /// <c>HexMesh</c> + tinted <c>MaterialPropertyBlock</c> path
+        /// for tiles of this biome — no buyer action is required to
+        /// get a working visual.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Authoring convention: the prefab's origin sits at the
+        /// tile center; the top hex vertex points to <c>+Z</c>
+        /// (pointy-top per ADR-0013), matching <c>HexMesh</c>. Bake
+        /// desired scale and rotation into the prefab itself — there
+        /// is no <c>PrefabScale</c> / <c>PrefabRotation</c> knob on
+        /// this SO (per ADR-0017).
+        /// </para>
+        /// <para>
+        /// The renderer always attaches a flat-<c>HexMesh</c>
+        /// <see cref="UnityEngine.MeshCollider"/> to the tile root
+        /// regardless of which prefab (if any) is used, so picking
+        /// (hover / click) works on any prefab without requiring the
+        /// prefab to author its own collider.
+        /// </para>
+        /// </remarks>
+        public GameObject Prefab;
+
+        /// <summary>
         /// True when <paramref name="temperature"/> and
         /// <paramref name="moisture"/> both fall inside this biome's
         /// envelope. Always false for water biomes (water tiles match

@@ -71,5 +71,32 @@ namespace HexWorldStudio.Content
         /// does not consume this field; gameplay code does.
         /// </summary>
         public float MovementCostMultiplier = 1f;
+
+        /// <summary>
+        /// Optional visual prefab. When non-null, the default
+        /// <c>WorldRenderer</c> instantiates this prefab as a child
+        /// of every tile carrying this feature, overriding the
+        /// underlying <see cref="BiomeDefinition.Prefab"/>. When
+        /// null, the renderer falls back to the tile's biome prefab
+        /// (if assigned) or to the procedural <c>HexMesh</c> path
+        /// per ADR-0017.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Authoring convention: prefab origin sits at the tile
+        /// center; top hex vertex points to <c>+Z</c> (pointy-top
+        /// per ADR-0013). Bake scale and rotation into the prefab
+        /// itself; this slice does not expose per-prefab scale or
+        /// rotation knobs.
+        /// </para>
+        /// <para>
+        /// The renderer always attaches a flat-<c>HexMesh</c>
+        /// <see cref="UnityEngine.MeshCollider"/> to the tile root
+        /// regardless of which prefab is used, so picking works on
+        /// arbitrary prefab geometry without requiring the prefab
+        /// to author its own collider.
+        /// </para>
+        /// </remarks>
+        public GameObject Prefab;
     }
 }
