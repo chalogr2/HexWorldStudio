@@ -126,13 +126,17 @@ namespace HexWorldStudio.Examples.QuickStart
 
             Ray ray = _camera.ScreenPointToRay(_input.MousePosition);
 
-            // Primary path: raycast against scene colliders.
+            // Primary path: raycast against scene colliders. Walks
+            // up the transform parent chain because per-ADR-0017
+            // prefab visuals can plant their own colliders on child
+            // GameObjects under the tile root; the binding always
+            // lives on the tile root itself.
             if (Physics.Raycast(ray, out RaycastHit hit, 1000f))
             {
-                var binding = hit.collider.GetComponent<HexTileBinding>();
+                var binding = hit.collider.GetComponentInParent<HexTileBinding>();
                 if (binding != null)
                 {
-                    hitWorldPos = hit.collider.transform.position;
+                    hitWorldPos = binding.transform.position;
                     return binding.Coord;
                 }
             }

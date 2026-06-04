@@ -9,22 +9,32 @@ namespace HexWorldStudio.Rendering
     /// <summary>
     /// MonoBehaviour that turns a <see cref="WorldMap"/> into scene
     /// geometry: one child <see cref="GameObject"/> per tile, parented
-    /// to this renderer, with a shared <see cref="Mesh"/> and a
-    /// per-biome <see cref="Material"/> from the
-    /// <see cref="BiomeMaterialCache"/>.
+    /// to this renderer. Each tile's visual is one of two paths:
+    /// (a) when the tile's <see cref="BiomeDefinition.Prefab"/> or
+    /// <see cref="TileFeatureDefinition.Prefab"/> is assigned, that
+    /// prefab is instantiated as a child of the tile root (feature
+    /// wins over biome); (b) otherwise the procedural <see cref="HexMesh"/>
+    /// + per-biome <see cref="Material"/> + per-tile
+    /// <see cref="MaterialPropertyBlock"/> path is used. The choice
+    /// is per-tile and resolved by ADR-0017.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Per-tile color variation lands as a <see cref="MaterialPropertyBlock"/>
-    /// on each tile's <see cref="MeshRenderer"/> so the SRP batcher
-    /// can still group draw calls. Slice 7A sets the tile color from
-    /// the biome; Slice 7B extends the property block to read a
+    /// Procedural path (no prefab): per-tile color variation lands as a
+    /// <see cref="MaterialPropertyBlock"/> on each tile's
+    /// <see cref="MeshRenderer"/> so the SRP batcher can still group
+    /// draw calls. Slice 7A sets the tile color from the biome; Slice
+    /// 7B extends the property block to read a
     /// <c>TileFeatureDefinition.Color</c> override when present.
     /// </para>
     /// <para>
-    /// One <see cref="MeshCollider"/> per tile is added at render time
-    /// so Slice 9's hover / click raycasts hit them without requiring
-    /// a renderer refactor.
+    /// Every tile root carries a <see cref="HexTileBinding"/> and a
+    /// <see cref="MeshCollider"/> whose <c>sharedMesh</c> is the flat
+    /// <see cref="HexMesh"/> shared mesh — regardless of which visual
+    /// path is chosen. This guarantees Slice 9's hover / click picking
+    /// works on buyer prefabs that may carry no colliders or
+    /// arbitrarily complex collider geometry. Picking walks up the
+    /// transform parent chain to find the binding.
     /// </para>
     /// <para>
     /// Buyers replace this renderer freely — the data layer never
@@ -146,30 +156,55 @@ namespace HexWorldStudio.Rendering
             go.transform.localPosition = worldPos;
             go.transform.localScale = Vector3.one * _tileWorldScale;
 
-            // Attach the canonical-coord binding so picking can resolve
-            // a raycast hit back to a HexCoord in constant time
-            // (ADR-0016). Survives Instantiate on wrap copies because
-            // Coord is plain serialized state.
+            // Always: canonical-coord binding + flat-hex picking collider
+            // on the tile root, regardless of which visual path is
+            // chosen (ADR-0016 + ADR-0017). Picking walks up the parent
+            // chain to find the binding, so prefab children with their
+            // own colliders still resolve to the right tile.
             var binding = go.AddComponent<HexTileBinding>();
             binding.Coord = tile.Coord;
 
-            var filter = go.AddComponent<MeshFilter>();
-            filter.sharedMesh = _sharedMesh;
-
-            var meshRenderer = go.AddComponent<MeshRenderer>();
-            BiomeDefinition biome = tile.Biome;
-            if (biome != null)
-            {
-                meshRenderer.sharedMaterial = _materialCache.Get(biome);
-                ApplyTileColor(meshRenderer, ResolveTileColor(tile));
-            }
-
-            // Mesh collider so Slice 9 raycasts hit tiles without a
-            // renderer refactor.
             var collider = go.AddComponent<MeshCollider>();
             collider.sharedMesh = _sharedMesh;
 
+            // Visual path: feature.Prefab → biome.Prefab → procedural HexMesh.
+            GameObject visualPrefab = ResolveVisualPrefab(tile);
+            if (visualPrefab != null)
+            {
+                var visual = Object.Instantiate(visualPrefab, go.transform);
+                visual.transform.localPosition = Vector3.zero;
+                visual.transform.localRotation = Quaternion.identity;
+                // Intentionally do not overwrite localScale here — the
+                // prefab brings its own authored scale and the tile
+                // root's _tileWorldScale already propagates uniformly
+                // via the parent transform.
+            }
+            else
+            {
+                // Procedural fallback (unchanged when both prefabs null).
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = _sharedMesh;
+
+                var meshRenderer = go.AddComponent<MeshRenderer>();
+                BiomeDefinition biome = tile.Biome;
+                if (biome != null)
+                {
+                    meshRenderer.sharedMaterial = _materialCache.Get(biome);
+                    ApplyTileColor(meshRenderer, ResolveTileColor(tile));
+                }
+            }
+
             return go;
+        }
+
+        // ADR-0017 precedence: feature prefab overrides biome prefab;
+        // when both are unset the renderer falls through to the
+        // procedural HexMesh path.
+        private static GameObject ResolveVisualPrefab(HexTile tile)
+        {
+            if (tile.Feature != null && tile.Feature.Prefab != null) return tile.Feature.Prefab;
+            if (tile.Biome   != null && tile.Biome.Prefab   != null) return tile.Biome.Prefab;
+            return null;
         }
 
         // Slice 7A: color comes from the biome. Slice 7B extends this
