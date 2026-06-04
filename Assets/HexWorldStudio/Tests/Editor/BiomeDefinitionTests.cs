@@ -84,5 +84,32 @@ namespace HexWorldStudio.Tests
             Assert.That(coast.IsWater && coast.IsCoastalWater, Is.True);
             Assert.That(land.IsWater, Is.False);
         }
+
+        [Test]
+        public void Prefab_DefaultsToNull()
+        {
+            // Per ADR-0017 the Prefab field must default to null on a
+            // fresh ScriptableObject so the procedural renderer path
+            // remains the zero-configuration default for buyers.
+            BiomeDefinition b = NewBiome();
+            Assert.That(b.Prefab, Is.Null);
+        }
+
+        [Test]
+        public void Prefab_Assignment_RoundTrips()
+        {
+            BiomeDefinition b = NewBiome();
+            var go = new GameObject("DummyPrefab");
+            try
+            {
+                b.Prefab = go;
+                Assert.That(b.Prefab, Is.SameAs(go));
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(b);
+            }
+        }
     }
 }

@@ -24,9 +24,28 @@ namespace HexWorldStudio.Tests
                 Assert.That(f.Weight, Is.EqualTo(1f));
                 Assert.That(f.IsImpassable, Is.False);
                 Assert.That(f.MovementCostMultiplier, Is.EqualTo(1f));
+                Assert.That(f.Prefab, Is.Null,
+                    "Per ADR-0017 the Prefab field must default to null so the procedural path is the zero-config default.");
             }
             finally
             {
+                Object.DestroyImmediate(f);
+            }
+        }
+
+        [Test]
+        public void Prefab_Assignment_RoundTrips()
+        {
+            var f = ScriptableObject.CreateInstance<TileFeatureDefinition>();
+            var go = new GameObject("DummyFeaturePrefab");
+            try
+            {
+                f.Prefab = go;
+                Assert.That(f.Prefab, Is.SameAs(go));
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
                 Object.DestroyImmediate(f);
             }
         }

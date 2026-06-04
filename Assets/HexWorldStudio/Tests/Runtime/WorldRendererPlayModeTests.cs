@@ -324,6 +324,158 @@ namespace HexWorldStudio.Tests.Runtime
             }
         }
 
+        // ---- Slice 10 / ADR-0017: prefab tile visuals ----
+
+        [UnityTest]
+        public IEnumerator Render_BiomePrefabAssigned_InstantiatesUnderTileRoot()
+        {
+            BiomeDefinition[] biomes = (BiomeDefinition[])MinimalBiomeSet(
+                out _, out _, out BiomeDefinition land);
+            var biomePrefab = new GameObject("BiomePrefabMarker");
+            biomePrefab.SetActive(false); // keep the source quiet; clones re-activate.
+            land.Prefab = biomePrefab;
+
+            GameObject host = NewRendererHost(out WorldRenderer renderer);
+            try
+            {
+                var settings = new WorldGenerationSettings(Width, Height, Seed,
+                    WorldGenerationSettings.DefaultLandRatio, biomes);
+                WorldMap map = new HexWorldGenerator().Generate(settings);
+                renderer.Render(map);
+                yield return null;
+
+                bool sawLand = false;
+                foreach (HexTile tile in map.Tiles)
+                {
+                    if (tile.LandState != TileLandState.Land) continue;
+                    sawLand = true;
+
+                    (int col, int row) = tile.Coord.ToOffsetOddR();
+                    Transform tileRoot = FindChildByCoord(host.transform, col, row);
+
+                    Assert.That(tileRoot.GetComponent<MeshFilter>(), Is.Null,
+                        "Tile root must not carry a procedural MeshFilter when a prefab is used.");
+                    Assert.That(tileRoot.GetComponent<MeshRenderer>(), Is.Null,
+                        "Tile root must not carry a procedural MeshRenderer when a prefab is used.");
+                    Assert.That(tileRoot.childCount, Is.EqualTo(1),
+                        "Prefab-bearing tile should have exactly one child (the instantiated prefab).");
+                    Assert.That(tileRoot.GetChild(0).name, Does.StartWith("BiomePrefabMarker"),
+                        "Instantiated child should be a clone of the biome prefab.");
+                    break;
+                }
+                Assert.That(sawLand, Is.True, "Test setup must produce at least one land tile.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                Object.DestroyImmediate(biomePrefab);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Render_FeaturePrefab_OverridesBiomePrefab()
+        {
+            BiomeDefinition[] biomes = (BiomeDefinition[])MinimalBiomeSet(
+                out _, out _, out BiomeDefinition land);
+
+            var biomePrefab = new GameObject("BiomePrefabMarker");
+            biomePrefab.SetActive(false);
+            land.Prefab = biomePrefab;
+
+            var feature = ScriptableObject.CreateInstance<TileFeatureDefinition>();
+            feature.FeatureName = "PlayFeature";
+            feature.Color = Color.white;
+            feature.PreferredElevationLevel = 0;
+            feature.Weight = 1f;
+            var featurePrefab = new GameObject("FeaturePrefabMarker");
+            featurePrefab.SetActive(false);
+            feature.Prefab = featurePrefab;
+            land.AllowedFeatures = new[] { feature };
+
+            GameObject host = NewRendererHost(out WorldRenderer renderer);
+            try
+            {
+                var settings = new WorldGenerationSettings(Width, Height, Seed,
+                    WorldGenerationSettings.DefaultLandRatio, biomes);
+                WorldMap map = new HexWorldGenerator().Generate(settings);
+                renderer.Render(map);
+                yield return null;
+
+                bool sawLand = false;
+                foreach (HexTile tile in map.Tiles)
+                {
+                    if (tile.LandState != TileLandState.Land) continue;
+                    sawLand = true;
+                    Assert.That(tile.Feature, Is.SameAs(feature),
+                        "Pre-condition: land tile should have the feature applied.");
+
+                    (int col, int row) = tile.Coord.ToOffsetOddR();
+                    Transform tileRoot = FindChildByCoord(host.transform, col, row);
+
+                    Assert.That(tileRoot.childCount, Is.EqualTo(1),
+                        "Prefab-bearing tile should have exactly one child.");
+                    Assert.That(tileRoot.GetChild(0).name, Does.StartWith("FeaturePrefabMarker"),
+                        "Feature.Prefab must win over Biome.Prefab per ADR-0017.");
+                    break;
+                }
+                Assert.That(sawLand, Is.True, "Test setup must produce at least one land tile.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                Object.DestroyImmediate(biomePrefab);
+                Object.DestroyImmediate(featurePrefab);
+                Object.DestroyImmediate(feature);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Render_TileRoot_KeepsBindingAndCollider_EvenWithPrefab()
+        {
+            BiomeDefinition[] biomes = (BiomeDefinition[])MinimalBiomeSet(
+                out _, out _, out BiomeDefinition land);
+            var biomePrefab = new GameObject("BiomePrefabMarker");
+            biomePrefab.SetActive(false);
+            land.Prefab = biomePrefab;
+
+            GameObject host = NewRendererHost(out WorldRenderer renderer);
+            try
+            {
+                var settings = new WorldGenerationSettings(Width, Height, Seed,
+                    WorldGenerationSettings.DefaultLandRatio, biomes);
+                WorldMap map = new HexWorldGenerator().Generate(settings);
+                renderer.Render(map);
+                yield return null;
+
+                foreach (HexTile tile in map.Tiles)
+                {
+                    if (tile.LandState != TileLandState.Land) continue;
+                    (int col, int row) = tile.Coord.ToOffsetOddR();
+                    Transform tileRoot = FindChildByCoord(host.transform, col, row);
+
+                    var binding = tileRoot.GetComponent<HexTileBinding>();
+                    Assert.That(binding, Is.Not.Null,
+                        "HexTileBinding must remain on the tile root regardless of prefab path.");
+                    Assert.That(binding.Coord, Is.EqualTo(tile.Coord));
+
+                    var collider = tileRoot.GetComponent<MeshCollider>();
+                    Assert.That(collider, Is.Not.Null,
+                        "Picking collider must remain on the tile root regardless of prefab path.");
+                    Assert.That(collider.sharedMesh, Is.Not.Null,
+                        "Picking collider must keep its sharedMesh assigned.");
+                    break;
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+                Object.DestroyImmediate(biomePrefab);
+                foreach (BiomeDefinition b in biomes) Object.DestroyImmediate(b);
+            }
+        }
+
         // ---- helpers ----
 
         private static Transform FindChildByCoord(Transform parent, int col, int row)
