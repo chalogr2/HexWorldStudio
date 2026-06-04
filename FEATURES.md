@@ -62,9 +62,9 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## ScriptableObject content
 
-- [~] `BiomeDefinition` SO (climate envelope, base color, water/coastal flags shipped in Slice 6; allowed-features and allowed-resources lists land alongside the feature and resource slices)
+- [~] `BiomeDefinition` SO (climate envelope, base color, water/coastal flags shipped in Slice 6; `Prefab` visual reference added in Slice 10 per ADR-0017; allowed-resources list lands alongside the resource slice)
 - [ ] `ResourceDefinition` SO (placement rules, rarity, biome compatibility)
-- [x] `TileFeatureDefinition` SO (Slice 7B; carries FeatureName, Color, PreferredElevationLevel, Weight, IsImpassable, MovementCostMultiplier per ADR-0014; 8 default features shipped; visual prefab references deferred to a polish slice)
+- [x] `TileFeatureDefinition` SO (Slice 7B; carries FeatureName, Color, PreferredElevationLevel, Weight, IsImpassable, MovementCostMultiplier per ADR-0014; 8 default features shipped; `Prefab` visual reference added in Slice 10 per ADR-0017)
 - [ ] `WorldPreset` SO (named bundles of generation settings — "Earth-like", "Archipelago", "Frozen", etc.)
 - [x] Default content set v1 — 7 starter biome `BiomeDefinition.asset` files shipped under `Assets/HexWorldStudio/Content/Biomes/` per ADR-0011: Ocean, Coast, Temperate, Arid, Tropical, Tundra, Snow. Climate envelopes exhaustively partition the (T, M) unit square for land tiles. Mediterranean and the full Civilization VII catalog remain the long-term parity target per ADR-0007.
 - [x] Default tile-feature set v1 (Slice 7B): Grassland, Savannah, Desert, Snowfield, Forest, Hill, Mountain, Rocky shipped under `Assets/HexWorldStudio/Content/Features/`. Per-biome allow-lists wired per the ADR-0011 / ADR-0014 table. Jungle / Rainforest remain candidates for a future Tropical expansion.
@@ -93,6 +93,9 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [x] Cylindrical render wrap (`WorldWrapRenderer`, Slice 8 / ADR-0015): two visual copies of the world at ±`WorldWidthInWorldUnits` with per-tile MaterialPropertyBlock copy + collider re-assertion. `WorldToCoord(worldPoint, map)` resolves hits on any copy back to the canonical coord.
 - [x] Civ-style camera controller (`CivCameraController`, Slice 8): pan (WASD / arrows / edge-scroll), zoom (scroll wheel), orbital yaw rotate (Q/E and middle-mouse drag), tilt (R/F and right-mouse drag, default 50°, clamped 30°–65°). Soft vertical bounds; horizontal wrap normalization. Reads input through `ICameraInput`.
 - [x] Input abstraction (`ICameraInput` + `LegacyUnityInputProvider` in `Runtime/Input/`, Slice 8): public interface buyers swap to migrate to the new Input System.
+- [~] Prefab tile visuals (Slice 10 / ADR-0017): `BiomeDefinition.Prefab` and `TileFeatureDefinition.Prefab` optional `GameObject` fields. `WorldRenderer` instantiates the assigned prefab as a child of the tile root (feature wins over biome) and falls back to the procedural `HexMesh` path when both are null. Tile root always carries `HexTileBinding` + a flat-`HexMesh` `MeshCollider` so picking works regardless of prefab geometry.
+- [ ] Prefab variants + per-tile rotation (Slice 10.1): `BiomeDefinition.PrefabVariants[]` (and feature counterpart) for visual variety, with per-tile deterministic Y rotation so identical prefabs don't tile visibly.
+- [ ] Bundled Kenney Hexagon Kit content (Slice 10.2 — after 10.1 testing): CC0 starter prefab set under `Assets/HexWorldStudio/ThirdParty/Kenney-HexagonKit/` + a sample biome/feature → prefab mapping under `Examples/SampleContent/`.
 - [ ] Non-navigable river ribbon meshes (along edges)
 - [ ] Navigable river tile geometry/material (per-tile)
 - [ ] Resource prop placement

@@ -418,3 +418,39 @@ The interaction stack divides cleanly into three problems: identify which tile i
 - `TileHover` and `TileSelection` live in `Examples/QuickStart/Scripts/` since the visual treatment is opinionated demo content; buyers copy and customize. Both depend on `HexTileBinding`, `HexOutline`, `WorldWrapRenderer` (for the math fallback), `WorldGeneratorBootstrap` (for `LatestMap`), and an `ICameraInput`.
 - Selection state clears on `Regenerate` (via a `WorldGeneratorBootstrap.OnRegenerated` event added in this slice).
 - Hover duration timer resets on every hover change and exposes `HoverDuration` for Slice 10's 2.5s-delay tooltip.
+
+---
+
+## ADR-0017 — Prefab tile visuals via optional `Prefab` field on `BiomeDefinition` / `TileFeatureDefinition`
+
+**Date:** 2026-06-04
+**Status:** Accepted
+
+**Decision:**
+Each `BiomeDefinition` and `TileFeatureDefinition` ScriptableObject gains an optional `public GameObject Prefab;` field (defaulting to `null`). When the renderer builds a tile GameObject it resolves the visual in three steps:
+
+1. If `tile.Feature?.Prefab` is non-null, `Object.Instantiate` it as a child of the tile root.
+2. Otherwise, if `tile.Biome?.Prefab` is non-null, instantiate that as a child.
+3. Otherwise, fall back to the existing procedural `HexMesh` + per-tile `MaterialPropertyBlock` path unchanged.
+
+The tile root **always** carries `HexTileBinding` and a `MeshCollider` whose `sharedMesh` is the flat `HexMesh` shared mesh — regardless of which visual path is chosen and regardless of whether the prefab itself supplies its own colliders. This makes hover / click picking work on any buyer prefab without requiring the buyer to author a hex collider into their model.
+
+**Alternatives considered:**
+
+- *Prefab field on `HexTile` directly.* Would put visual data inside the pure-data layer; violates the data/render separation principle (ADR-0005 / CLAUDE.md principle 1). Rejected.
+- *Replace the procedural path entirely.* Would force every buyer to author or import a full prefab set before seeing any visuals. The procedural path is a viable "no-content-required" demo path and the test surface is built around it. Rejected.
+- *Separate "BiomeVisuals" SO.* An extra ScriptableObject mapping `BiomeDefinition` → prefab. Adds indirection without a clear win — the biome SO is already the natural home for biome-related visuals, mirroring `BiomeDefinition.Color`. Rejected.
+- *Per-prefab `Scale` / `Rotation` / `Offset` SO fields in this slice.* YAGNI — buyers can bake those into the prefab itself. Random per-tile Y rotation (the actual win) belongs in Slice 10.1 alongside variants.
+
+**Reasoning:**
+Adding a single nullable prefab reference to the SOs we already ship is the minimum viable surface for "drop in a prefab and tiles look like that." The renderer's swap is a one-line null check; the procedural path stays bit-identical when no prefab is assigned, so existing tests and demo behavior do not change for buyers who skip prefabs entirely. Data-layer code remains GameObject-free — `HexTile` carries a reference to a `BiomeDefinition` and a `TileFeatureDefinition`; the prefab lives on those, not on the tile. Gameplay code that ignores rendering still ignores GameObjects.
+
+Keeping the flat `HexMesh` `MeshCollider` on the tile root regardless of visual path means buyer prefabs can be arbitrarily complex (and arbitrarily collider-free) without breaking Slice 9's picking. The cost is one extra `MeshCollider` per tile when the buyer's prefab supplies its own — measurable but cheap; revisit if profiling demands it.
+
+**Implementation note:**
+
+- `BiomeDefinition.Prefab` and `TileFeatureDefinition.Prefab` are `public GameObject` fields with XML doc comments. No constructor changes — both SOs already author via inspector.
+- `WorldRenderer.BuildTileGameObject` is the only consumer in v1.
+- Procedural-path tiles continue to use the cached biome `Material` + `MaterialPropertyBlock`. Prefab-path tiles do not get a root `MeshFilter` / `MeshRenderer` — the prefab is responsible for its own rendering.
+- Picking on a prefab tile still resolves via the tile root's `HexTileBinding`; the raycast hit may land on a prefab child, and the picker walks `Transform.parent` up to the `HexTileBinding`.
+- Slice 10.1 adds `PrefabVariants[]` (RNG-picked from a list) and a per-tile deterministic Y rotation derived from `HexCoord`. Slice 10.2 (after testing) bundles the CC0 Kenney Hexagon Kit and a sample biome→prefab mapping.
