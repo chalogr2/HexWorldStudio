@@ -1,0 +1,19 @@
+{
+    "name": "HexWorldStudio.Runtime.InputSystem",
+    "rootNamespace": "HexWorldStudio.Input",
+    "references": [
+        "GUID:ca740c45a589414f80a8024ed542f626",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "ENABLE_INPUT_SYSTEM"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
