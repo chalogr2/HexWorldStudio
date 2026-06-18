@@ -18,12 +18,21 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
     /// content later.
     /// </para>
     /// <para>
-    /// Quantization: <c>level = clamp(floor(Elevation * LevelCount), 0, LevelCount-1)</c>.
-    /// Smoothing: a single non-iterative pass that, for each tile,
+    /// Quantization: <c>level = clamp(floor(Elevation * LevelCount), 0, LevelCount-1)</c>
+    /// for land tiles. Water tiles (<see cref="TileLandState.Water"/>)
+    /// are forced to <c>ElevationLevel = 0</c> regardless of the
+    /// continuous elevation noise, so oceans and coasts never render
+    /// above the surrounding land.
+    /// </para>
+    /// <para>
+    /// Smoothing: a single non-iterative pass that, for each land tile,
     /// computes the median of <c>{self} ∪ wrap-aware-neighbors</c> and
     /// snaps the tile one step toward the median if the gap is two or
     /// more. Preserves legitimate sharp features (cliffs of 1 level
-    /// stay; isolated 2-step outliers collapse).
+    /// stay; isolated 2-step outliers collapse). Water tiles are
+    /// skipped in this pass and contribute their pinned level 0 to
+    /// neighboring land tiles' medians, so coastal land doesn't get
+    /// smoothed up by stray water elevation noise.
     /// </para>
     /// <para>
     /// Honors cylindrical wrap via <see cref="WorldMap.TryGetTile"/>
@@ -77,9 +86,15 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             int maxLevel = _levelCount - 1;
 
             // Pass 1: floor-bucket continuous elevation into discrete levels.
+            // Water tiles pin to level 0 so oceans and coasts never render above the surrounding land.
             for (int i = 0; i < count; i++)
             {
                 HexTile tile = map.Tiles[i];
+                if (tile.LandState == TileLandState.Water)
+                {
+                    tile.ElevationLevel = 0;
+                    continue;
+                }
                 int level = (int)Math.Floor(tile.Elevation * _levelCount);
                 if (level < 0) level = 0;
                 if (level > maxLevel) level = maxLevel;
@@ -97,6 +112,13 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             for (int i = 0; i < count; i++)
             {
                 HexTile tile = map.Tiles[i];
+
+                // Water tiles stay pinned to 0 — skip smoothing entirely.
+                // They still appear in neighboring land tiles' medians via
+                // the snapshot (with value 0), so a single-tile land peak
+                // surrounded by water collapses correctly.
+                if (tile.LandState == TileLandState.Water) continue;
+
                 neighborhood.Clear();
                 neighborhood.Add(snapshot[i]);
                 foreach (HexCoord neighbor in tile.Coord.Neighbors())

@@ -206,5 +206,61 @@ namespace HexWorldStudio.Tests
             Assert.That(new ElevationLevelQuantizationStage().Name,
                 Is.EqualTo("ElevationLevelQuantization"));
         }
+
+        [Test]
+        public void Execute_WaterTiles_AlwaysPinToZero_RegardlessOfElevationNoise()
+        {
+            // Pin the contract: water tiles never render above the
+            // surrounding land. Set every tile's continuous Elevation
+            // high (would normally bucket to max level) but mark half
+            // of them as Water — those must come out at level 0.
+            GenerationContext ctx = NewContext();
+            FillElevation(ctx.Map, 1f);
+            for (int i = 0; i < ctx.Map.Tiles.Count; i++)
+            {
+                ctx.Map.Tiles[i].LandState = (i % 2 == 0) ? TileLandState.Water : TileLandState.Land;
+            }
+
+            new ElevationLevelQuantizationStage().Execute(ctx);
+
+            int maxLevel = ElevationLevelQuantizationStage.DefaultLevelCount - 1;
+            for (int i = 0; i < ctx.Map.Tiles.Count; i++)
+            {
+                HexTile tile = ctx.Map.Tiles[i];
+                if (tile.LandState == TileLandState.Water)
+                {
+                    Assert.That(tile.ElevationLevel, Is.EqualTo(0),
+                        $"Water tile {i} must pin to level 0 even with Elevation = 1.");
+                }
+                else
+                {
+                    // Land tiles surrounded by water-as-0 may smooth one
+                    // step down, but must not be at level 0.
+                    Assert.That(tile.ElevationLevel, Is.GreaterThan(0),
+                        $"Land tile {i} should not collapse to 0 just because some neighbors are water.");
+                    Assert.That(tile.ElevationLevel, Is.LessThanOrEqualTo(maxLevel));
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_LandTileSurroundedByWater_SmoothsDownward_NotUpward()
+        {
+            // Water tiles contribute their pinned 0 to neighboring land
+            // tiles' medians. A lone tall land tile surrounded by water
+            // must therefore smooth one step DOWN, never up.
+            GenerationContext ctx = NewContext();
+            FillElevation(ctx.Map, 1f);
+            foreach (HexTile tile in ctx.Map.Tiles) tile.LandState = TileLandState.Water;
+
+            const int landIndex = 30; // away from the seam (matches existing isolated-outlier test).
+            ctx.Map.Tiles[landIndex].LandState = TileLandState.Land;
+
+            new ElevationLevelQuantizationStage().Execute(ctx);
+
+            int maxLevel = ElevationLevelQuantizationStage.DefaultLevelCount - 1;
+            Assert.That(ctx.Map.Tiles[landIndex].ElevationLevel, Is.EqualTo(maxLevel - 1),
+                "A lone max-elevation land tile surrounded by water should smooth one step toward 0.");
+        }
     }
 }
