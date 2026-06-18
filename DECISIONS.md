@@ -454,3 +454,45 @@ Keeping the flat `HexMesh` `MeshCollider` on the tile root regardless of visual 
 - Procedural-path tiles continue to use the cached biome `Material` + `MaterialPropertyBlock`. Prefab-path tiles do not get a root `MeshFilter` / `MeshRenderer` — the prefab is responsible for its own rendering.
 - Picking on a prefab tile still resolves via the tile root's `HexTileBinding`; the raycast hit may land on a prefab child, and the picker walks `Transform.parent` up to the `HexTileBinding`.
 - Slice 10.1 adds `PrefabVariants[]` (RNG-picked from a list) and a per-tile deterministic Y rotation derived from `HexCoord`. Slice 10.2 (after testing) bundles the CC0 Kenney Hexagon Kit and a sample biome→prefab mapping.
+
+---
+
+## ADR-0018 — Dual input provider: legacy + new Input System, picked at compile-time, wired by a runtime installer
+
+**Date:** 2026-06-16
+**Status:** Accepted
+
+**Decision:**
+Hex World Studio ships two `ICameraInput` implementations, one for each of Unity's input stacks, plus a tiny installer component that wires the right one at runtime:
+
+1. **`LegacyUnityInputProvider`** (in `Runtime/Input/`, main `HexWorldStudio.Runtime` asmdef). Reads from `UnityEngine.Input`. Every call site is guarded with `#if ENABLE_LEGACY_INPUT_MANAGER` — under projects whose `Active Input Handling` is "Input System Package" only, the class still compiles and instantiates, but every property returns a benign zero / false stub. This avoids the runtime `InvalidOperationException` Unity throws when `UnityEngine.Input` is used under new-only mode, and keeps the type available so older scenes wired to it don't go missing.
+2. **`InputSystemInputProvider`** (in `Runtime/Input/InputSystem/`, dedicated `HexWorldStudio.Runtime.InputSystem` asmdef). Reads from `Keyboard.current` / `Mouse.current` in the `com.unity.inputsystem` package. The asmdef declares `defineConstraints: ["ENABLE_INPUT_SYSTEM"]` and references `Unity.InputSystem`, so the whole assembly only compiles when the project has the new Input System available — buyers without the package see zero compile errors from us.
+3. **`CameraInputInstaller`** (in `Runtime/Input/`, main asmdef). A `MonoBehaviour` that on `Awake` adds the right `ICameraInput` to its GameObject. The main asmdef cannot directly name `InputSystemInputProvider` (that type lives in a sibling asmdef that may not be present), so the installer exposes a `public static Func<GameObject, ICameraInput> InputSystemFactory` field. The InputSystem asmdef contains `InputSystemBootstrap`, a tiny static class with `[RuntimeInitializeOnLoadMethod]` (and a mirrored `[UnityEditor.InitializeOnLoadMethod]` for EditMode test runs) that sets the factory to a delegate that `AddComponent`s the new provider. At Awake the installer prefers the factory if it has been set (the new system is active), otherwise falls back to `LegacyUnityInputProvider` under `#if ENABLE_LEGACY_INPUT_MANAGER`. Exposes the chosen `ICameraInput` via a public `Installed` property for inspection. The `QuickStartScene` carries this installer instead of either provider directly; `CivCameraController`'s existing `GetComponent<ICameraInput>()` fallback finds whichever instance the installer added.
+
+**Alternatives considered:**
+
+- *Require buyers to flip `Active Input Handling` to "Both" in Player Settings.* Works for our dev project but pushes a project-wide setting change onto every buyer. Asset Store assets must work in any of Unity's three input handling configurations out of the box. Rejected.
+- *Single provider that internally branches per-call via the scripting symbols.* Doable but mixes two unrelated input APIs in one type, makes the file larger and harder to read, and forces the main `Runtime` asmdef to (optionally) reference `Unity.InputSystem`. Rejected — separate asmdef gated by `defineConstraints` is the conventional Unity pattern for optional package integrations.
+- *Cross-asmdef reference from main `Runtime` → `Runtime.InputSystem` so the installer can name the new provider directly.* Tried first; produced `CS0246: The type or namespace name 'InputSystemInputProvider' could not be found` because the new asmdef is define-constrained and the main asmdef can't see its types regardless of whether the constraint is met. The static-factory hook is the standard Unity workaround.
+- *Reflection-based `Type.GetType("HexWorldStudio.Input.InputSystemInputProvider, …") + AddComponent(type)`.* Avoids the asmdef boundary problem cleanly, but violates the "no reflection-based wiring, no clever metaprogramming" principle in `CLAUDE.md`. Rejected.
+- *Add a hard reference to `Unity.InputSystem` from the main Runtime asmdef.* Compile-fails for buyers whose project doesn't have the package installed. The new Input System ships with Unity 6's URP / HDRP / 3D Core templates, but it's still removable, and `com.unity.inputsystem` is not a hard requirement of our generator data/render layers. Rejected.
+- *Use `versionDefines` on the main Runtime asmdef instead of a separate asmdef.* Would let the legacy provider live with both stacks in the same assembly, but the new provider's `using UnityEngine.InputSystem;` statements still wouldn't compile without an asmdef reference to `Unity.InputSystem` — which would resurface the previous problem. A separate, define-constrained asmdef cleanly avoids both.
+- *Drop the legacy provider once we have a new-system one.* Rejected — buyers on legacy-only projects exist (Unity 2022 LTS hold-outs and Unity 6 projects that explicitly switched off the new system). Asset Store reach matters.
+
+**Reasoning:**
+Unity exposes two scripting symbols that are set per-project based on `Active Input Handling`:
+
+- `ENABLE_LEGACY_INPUT_MANAGER` — set when handling is "Input Manager (Old)" or "Both".
+- `ENABLE_INPUT_SYSTEM` — set when handling is "Input System Package" or "Both".
+
+Honoring both — and preferring the new system when both are available — is the smallest change that makes the demo scene work under all three of Unity's input handling configurations. The seam already exists: `CivCameraController`, `TileHover`, and `TileSelection` all read through the `ICameraInput` interface, so neither the camera controller nor the picking layer changes. The installer is the only new wiring concept buyers see; the asmdef split is invisible to anyone who isn't poking at our assembly graph.
+
+**Implementation note:**
+
+- The new provider mirrors the legacy provider's semantics exactly: same `PanAxis` range, same `ZoomDelta` sign (positive = zoom in / camera lower), same edge-scroll threshold, same press-frame semantics for `PrimaryClickPressed` / `SecondaryClickPressed`. Buyer code that worked under one provider works under the other without parameter retuning.
+- The new provider reads from `Keyboard.current`, `Mouse.current`, and `Pointer.current?.position`. When `current` is null (no device attached) every axis is zero / false; the installer does not error.
+- `InputSystem.Update()` is **not** called from our code — the package's `PlayerLoop` integration handles per-frame polling. Our provider just reads device state.
+- `CameraInputInstaller.Awake` runs once and the chosen provider becomes a sibling MonoBehaviour on the same GameObject; the installer holds a reference but does not proxy. `CivCameraController` finds the provider through `GetComponent<ICameraInput>()` on Awake the same way it already did with the legacy provider.
+- `InputSystemBootstrap` populates the factory at `BeforeSceneLoad` (Play / build) and at `InitializeOnLoad` (Editor / EditMode tests). The static field starts `null` and is idempotently set both ways, so legacy-only projects (where the InputSystem asmdef does not compile) never set it and the installer falls through to the legacy branch.
+- The `Examples/SampleScene` (Unity's template scene) and `Tests` assemblies are unchanged. Scene wiring change is limited to `QuickStartScene.unity`.
+- PlayMode tests for the new provider use `UnityEngine.InputSystem.InputTestFixture` (shipped inside the Input System package, available transitively via the `Tests.Runtime` asmdef referencing `Unity.InputSystem.TestFramework`). The whole test class is wrapped in `#if ENABLE_INPUT_SYSTEM` so legacy-only test runs skip it cleanly.
