@@ -24,8 +24,13 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Number of rows in the generated map.")]
         [SerializeField] private int _height = 20;
 
-        [Tooltip("Generation seed. Identical settings + identical seed produce a byte-identical WorldMap.")]
+        [Tooltip("Generation seed. Identical settings + identical seed produce a byte-identical WorldMap. " +
+                 "When 'Randomize Seed On Regenerate' is enabled, this field is overwritten with a fresh " +
+                 "ulong at every Regenerate so the inspector always reflects the seed actually used.")]
         [SerializeField] private ulong _seed = 12345UL;
+
+        [Tooltip("If true, Regenerate() picks a fresh random seed before generating. Uncheck and edit the Seed field to pin a specific world. Determinism is preserved: same seed + same settings still produce byte-identical output.")]
+        [SerializeField] private bool _randomizeSeedOnRegenerate = true;
 
         [Tooltip("Target land ratio in (0, 1). The percentile-threshold continent algorithm honors this exactly.")]
         [Range(0.05f, 0.95f)]
@@ -47,6 +52,11 @@ namespace HexWorldStudio.Rendering
 
         /// <summary>The most recent <see cref="WorldMap"/> produced by <see cref="Regenerate"/>.</summary>
         public WorldMap LatestMap { get; internal set; }
+
+        // Process-lifetime seed picker. Lives outside the deterministic
+        // generator pipeline — it only chooses the ulong handed to the
+        // RngService, which itself is fully deterministic per seed.
+        private static readonly System.Random _seedPicker = new System.Random();
 
         /// <summary>
         /// Fires at the end of every successful <see cref="Regenerate"/>
@@ -83,6 +93,11 @@ namespace HexWorldStudio.Rendering
                 return;
             }
 
+            if (_randomizeSeedOnRegenerate)
+            {
+                _seed = PickRandomSeed();
+            }
+
             var settings = new WorldGenerationSettings(_width, _height, _seed, _landRatio, _biomes);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
@@ -95,6 +110,16 @@ namespace HexWorldStudio.Rendering
             }
 
             OnRegenerated?.Invoke();
+        }
+
+        private static ulong PickRandomSeed()
+        {
+            var buf = new byte[8];
+            lock (_seedPicker)
+            {
+                _seedPicker.NextBytes(buf);
+            }
+            return System.BitConverter.ToUInt64(buf, 0);
         }
     }
 }
