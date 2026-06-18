@@ -37,6 +37,16 @@ namespace HexWorldStudio.Rendering
     /// transform parent chain to find the binding.
     /// </para>
     /// <para>
+    /// Tile Y uses a Civ-style stepped baseline: Ocean tiles pin to
+    /// <see cref="OceanRenderHeight"/>, Coast tiles to
+    /// <c>OceanRenderHeight + CoastRiseAboveOcean</c>, and land tiles
+    /// to <c>OceanRenderHeight + LandRiseAboveWater + ElevationLevel * ElevationStep</c>.
+    /// Water tiles get no per-tile noise variation — uniform water
+    /// reads as calm / readable in the Civ aesthetic, and Coast vs
+    /// Ocean provides the natural shoreline distinction. See
+    /// <see cref="ComputeTileY"/>.
+    /// </para>
+    /// <para>
     /// Buyers replace this renderer freely — the data layer never
     /// depends on it. Performance work (chunked rendering, GPU
     /// instancing) is tracked under "Performance &amp; scaling" in
@@ -55,6 +65,17 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Multiplier applied to every tile's local scale. Defaults to 1 (uses HexMesh OuterRadius as-is).")]
         [SerializeField] private float _tileWorldScale = 1f;
 
+        [Header("Water level (Civ-style stepped baseline)")]
+
+        [Tooltip("Y of open-ocean tiles. Sets the canonical sea level for the world.")]
+        [SerializeField] private float _oceanRenderHeight = 0f;
+
+        [Tooltip("World units Coast tiles rise above OceanRenderHeight. Distinguishes shallow coastal water from open ocean (continental-shelf look).")]
+        [SerializeField] private float _coastRiseAboveOcean = 0.05f;
+
+        [Tooltip("World units the lowest land tile (ElevationLevel 0) rises above OceanRenderHeight. Forms the visible coastline shelf between water and land. Higher values exaggerate the cliff between water and beach.")]
+        [SerializeField] private float _landRiseAboveWater = 0.15f;
+
         /// <summary>Y added per ElevationLevel step.</summary>
         public float ElevationStep
         {
@@ -67,6 +88,27 @@ namespace HexWorldStudio.Rendering
         {
             get => _tileWorldScale;
             set => _tileWorldScale = value;
+        }
+
+        /// <summary>Y of open-ocean tiles.</summary>
+        public float OceanRenderHeight
+        {
+            get => _oceanRenderHeight;
+            set => _oceanRenderHeight = value;
+        }
+
+        /// <summary>World units Coast tiles rise above <see cref="OceanRenderHeight"/>.</summary>
+        public float CoastRiseAboveOcean
+        {
+            get => _coastRiseAboveOcean;
+            set => _coastRiseAboveOcean = value;
+        }
+
+        /// <summary>World units the lowest land tile rises above <see cref="OceanRenderHeight"/>.</summary>
+        public float LandRiseAboveWater
+        {
+            get => _landRiseAboveWater;
+            set => _landRiseAboveWater = value;
         }
 
         private Mesh _sharedMesh;
@@ -149,7 +191,9 @@ namespace HexWorldStudio.Rendering
         private GameObject BuildTileGameObject(HexTile tile)
         {
             (int col, int row) = tile.Coord.ToOffsetOddR();
-            Vector3 worldPos = HexMesh.WorldPosition(col, row, tile.ElevationLevel, _elevationStep);
+            // Use HexMesh.WorldPosition only for the XZ layout; replace Y with the Civ-style stepped baseline.
+            Vector3 worldPos = HexMesh.WorldPosition(col, row, 0, 0f);
+            worldPos.y = ComputeTileY(tile, _oceanRenderHeight, _coastRiseAboveOcean, _landRiseAboveWater, _elevationStep);
 
             var go = new GameObject($"Tile_{col}_{row}");
             go.transform.SetParent(transform, worldPositionStays: false);
@@ -195,6 +239,31 @@ namespace HexWorldStudio.Rendering
             }
 
             return go;
+        }
+
+        /// <summary>
+        /// Computes the world-space Y for a tile under the Civ-style
+        /// stepped-baseline model: Ocean and Coast pin to their own
+        /// uniform Y (no per-tile noise — Civ water reads as calm /
+        /// readable), and land tiles step up from
+        /// <paramref name="oceanY"/> by
+        /// <paramref name="landRise"/> + <c>ElevationLevel * elevationStep</c>.
+        /// </summary>
+        /// <remarks>
+        /// Pure function so EditMode tests can pin the contract without
+        /// instantiating a MonoBehaviour. A null <paramref name="tile"/>
+        /// is treated as land at level 0 (lowest coastline).
+        /// </remarks>
+        internal static float ComputeTileY(HexTile tile, float oceanY, float coastRise, float landRise, float elevationStep)
+        {
+            if (tile != null && tile.Biome != null && tile.Biome.IsWater)
+            {
+                return tile.Biome.IsCoastalWater
+                    ? oceanY + coastRise
+                    : oceanY;
+            }
+            int level = (tile != null) ? tile.ElevationLevel : 0;
+            return oceanY + landRise + level * elevationStep;
         }
 
         // ADR-0017 precedence: feature prefab overrides biome prefab;
