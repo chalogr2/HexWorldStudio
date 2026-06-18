@@ -11,10 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Rocky
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Rocky
   Color: {r: 0.6313726, g: 0.53333336, b: 0.49803922, a: 1}
   PreferredElevationLevel: 3
   Weight: 0.6
   IsImpassable: 0
   MovementCostMultiplier: 1.5
+  Prefab: {fileID: 4871533515079956701, guid: a102c01faf971de42bcd2218eca46f72, type: 3}

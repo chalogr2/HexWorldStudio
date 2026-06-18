@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f73ed2ba68c41d499f52be0ecad3933, type: 3}
   m_Name: Coast
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   BiomeName: Coast
   Color: {r: 0.22745098, g: 0.4862745, b: 0.72156864, a: 1}
   IsWater: 1
@@ -20,3 +20,5 @@ MonoBehaviour:
   MaxTemperature: 0
   MinMoisture: 0
   MaxMoisture: 0
+  AllowedFeatures: []
+  Prefab: {fileID: 3105683755032653290, guid: 852d9eaec0905314396c2b0193e21d20, type: 3}

@@ -11,10 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Desert
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Desert
   Color: {r: 0.98039216, g: 0.7529412, b: 0.1764706, a: 1}
   PreferredElevationLevel: 1
   Weight: 2
   IsImpassable: 0
   MovementCostMultiplier: 1.5
+  Prefab: {fileID: 7021085246460658975, guid: e5b183c7f21301b42a618a2991c44911, type: 3}

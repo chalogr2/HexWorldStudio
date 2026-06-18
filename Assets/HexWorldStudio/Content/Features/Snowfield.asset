@@ -11,10 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Snowfield
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Snowfield
   Color: {r: 0.88235295, g: 0.9607843, b: 1, a: 1}
   PreferredElevationLevel: 1
   Weight: 2
   IsImpassable: 0
   MovementCostMultiplier: 1.3
+  Prefab: {fileID: 1890691866046080611, guid: df2b3a5c64e0ba54f9653fc189bf01dd, type: 3}

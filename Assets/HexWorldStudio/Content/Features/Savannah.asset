@@ -11,10 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Savannah
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Savannah
   Color: {r: 0.7529412, g: 0.7921569, b: 0.2, a: 1}
   PreferredElevationLevel: 1
   Weight: 2
   IsImpassable: 0
   MovementCostMultiplier: 1
+  Prefab: {fileID: 6663657482294307716, guid: f5d994afdeaa6d7418482b2eddfaf0fc, type: 3}

@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f73ed2ba68c41d499f52be0ecad3933, type: 3}
   m_Name: Ocean
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   BiomeName: Ocean
   Color: {r: 0.10196078, g: 0.24705882, b: 0.47843137, a: 1}
   IsWater: 1
@@ -20,3 +20,5 @@ MonoBehaviour:
   MaxTemperature: 0
   MinMoisture: 0
   MaxMoisture: 0
+  AllowedFeatures: []
+  Prefab: {fileID: 749770617735672450, guid: 2b94a12883e033f468a9401068c3f69f, type: 3}
