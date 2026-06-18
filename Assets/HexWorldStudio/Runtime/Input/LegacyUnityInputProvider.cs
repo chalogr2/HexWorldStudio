@@ -1,18 +1,29 @@
 using UnityEngine;
+#if ENABLE_LEGACY_INPUT_MANAGER
 using UnityInput = UnityEngine.Input;
+#endif
 
 namespace HexWorldStudio.Input
 {
     /// <summary>
-    /// Default <see cref="ICameraInput"/> implementation backed by the
-    /// legacy <c>UnityEngine.Input</c> class. Pan from WASD / arrows /
+    /// Legacy <see cref="ICameraInput"/> implementation backed by the
+    /// <c>UnityEngine.Input</c> class. Pan from WASD / arrows /
     /// edge-scroll, zoom from scroll wheel, yaw rotate from
     /// middle-mouse drag + Q/E, tilt from right-mouse drag + R/F.
     /// </summary>
     /// <remarks>
-    /// Lives in <c>Runtime/Input/</c> so buyers can extract it as a
-    /// standalone input feature. The new Input System variant arrives
-    /// later per the v1.1 stretch goal in <c>FEATURES.md</c>.
+    /// <para>
+    /// Compiles under any input-handling configuration. Every property
+    /// is guarded with <c>#if ENABLE_LEGACY_INPUT_MANAGER</c> so the
+    /// provider degrades to a zero / <c>false</c> stub when a project's
+    /// <c>Active Input Handling</c> is set to "Input System Package"
+    /// only — calling <c>UnityEngine.Input</c> in that mode throws
+    /// <c>InvalidOperationException</c>. The matching
+    /// <c>InputSystemInputProvider</c> in
+    /// <c>Runtime/Input/InputSystem/</c> handles the new-system case;
+    /// <see cref="CameraInputInstaller"/> picks between them at
+    /// <c>Awake</c>. See ADR-0018.
+    /// </para>
     /// </remarks>
     public sealed class LegacyUnityInputProvider : MonoBehaviour, ICameraInput
     {
@@ -33,6 +44,7 @@ namespace HexWorldStudio.Input
         {
             get
             {
+#if ENABLE_LEGACY_INPUT_MANAGER
                 Vector2 keyboard = new Vector2(
                     AxisFromKeys(KeyCode.D, KeyCode.A, KeyCode.RightArrow, KeyCode.LeftArrow),
                     AxisFromKeys(KeyCode.W, KeyCode.S, KeyCode.UpArrow, KeyCode.DownArrow));
@@ -40,21 +52,33 @@ namespace HexWorldStudio.Input
                 Vector2 edge = _edgeScrollEnabled ? ComputeEdgeScroll() : Vector2.zero;
 
                 Vector2 combined = keyboard + edge;
-                // Clamp to unit length so simultaneous keyboard + edge
-                // scroll doesn't double pan speed.
                 if (combined.sqrMagnitude > 1f) combined.Normalize();
                 return combined;
+#else
+                return Vector2.zero;
+#endif
             }
         }
 
         /// <inheritdoc/>
-        public float ZoomDelta => UnityInput.mouseScrollDelta.y;
+        public float ZoomDelta
+        {
+            get
+            {
+#if ENABLE_LEGACY_INPUT_MANAGER
+                return UnityInput.mouseScrollDelta.y;
+#else
+                return 0f;
+#endif
+            }
+        }
 
         /// <inheritdoc/>
         public float RotateAxis
         {
             get
             {
+#if ENABLE_LEGACY_INPUT_MANAGER
                 float keyboard = AxisFromKeys(KeyCode.E, KeyCode.Q);
                 float drag = 0f;
                 if (UnityInput.GetMouseButton(2))
@@ -62,6 +86,9 @@ namespace HexWorldStudio.Input
                     drag = UnityInput.GetAxis("Mouse X") * _mouseDragRotateSensitivity;
                 }
                 return Mathf.Clamp(keyboard + drag, -1f, 1f);
+#else
+                return 0f;
+#endif
             }
         }
 
@@ -70,6 +97,7 @@ namespace HexWorldStudio.Input
         {
             get
             {
+#if ENABLE_LEGACY_INPUT_MANAGER
                 float keyboard = AxisFromKeys(KeyCode.R, KeyCode.F);
                 float drag = 0f;
                 if (UnityInput.GetMouseButton(1))
@@ -77,6 +105,9 @@ namespace HexWorldStudio.Input
                     drag = UnityInput.GetAxis("Mouse Y") * _mouseDragTiltSensitivity;
                 }
                 return Mathf.Clamp(keyboard + drag, -1f, 1f);
+#else
+                return 0f;
+#endif
             }
         }
 
@@ -85,20 +116,55 @@ namespace HexWorldStudio.Input
         {
             get
             {
+#if ENABLE_LEGACY_INPUT_MANAGER
                 Vector3 m = UnityInput.mousePosition;
                 return m.x >= 0f && m.y >= 0f && m.x <= Screen.width && m.y <= Screen.height;
+#else
+                return false;
+#endif
             }
         }
 
         /// <inheritdoc/>
-        public Vector2 MousePosition => UnityInput.mousePosition;
+        public Vector2 MousePosition
+        {
+            get
+            {
+#if ENABLE_LEGACY_INPUT_MANAGER
+                return UnityInput.mousePosition;
+#else
+                return Vector2.zero;
+#endif
+            }
+        }
 
         /// <inheritdoc/>
-        public bool PrimaryClickPressed => UnityInput.GetMouseButtonDown(0);
+        public bool PrimaryClickPressed
+        {
+            get
+            {
+#if ENABLE_LEGACY_INPUT_MANAGER
+                return UnityInput.GetMouseButtonDown(0);
+#else
+                return false;
+#endif
+            }
+        }
 
         /// <inheritdoc/>
-        public bool SecondaryClickPressed => UnityInput.GetMouseButtonDown(1);
+        public bool SecondaryClickPressed
+        {
+            get
+            {
+#if ENABLE_LEGACY_INPUT_MANAGER
+                return UnityInput.GetMouseButtonDown(1);
+#else
+                return false;
+#endif
+            }
+        }
 
+#if ENABLE_LEGACY_INPUT_MANAGER
         // Returns +1 if any "positive" key is held, -1 if any "negative" key is held, 0 otherwise.
         private static float AxisFromKeys(params KeyCode[] keys)
         {
@@ -127,5 +193,6 @@ namespace HexWorldStudio.Input
 
             return new Vector2(ex, ey);
         }
+#endif
     }
 }
