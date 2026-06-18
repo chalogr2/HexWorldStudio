@@ -1,0 +1,27 @@
+{
+    "name": "HexWorldStudio.Tests.Runtime.InputSystem",
+    "rootNamespace": "HexWorldStudio.Tests",
+    "references": [
+        "HexWorldStudio.Runtime",
+        "HexWorldStudio.Runtime.InputSystem",
+        "Unity.InputSystem",
+        "Unity.InputSystem.TestFramework"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "ENABLE_INPUT_SYSTEM"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
