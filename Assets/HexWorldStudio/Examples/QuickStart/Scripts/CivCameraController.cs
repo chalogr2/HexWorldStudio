@@ -12,10 +12,13 @@ namespace HexWorldStudio.Examples.QuickStart
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Reads input through <see cref="ICameraInput"/> so buyers can
-    /// swap to the new Input System later without touching this
-    /// script. The default scene wiring uses
-    /// <see cref="LegacyUnityInputProvider"/>.
+    /// Reads input through <see cref="ICameraInput"/> so the camera
+    /// controller is agnostic to which input stack the project uses.
+    /// The QuickStart scene wires a <see cref="CameraInputInstaller"/>
+    /// onto the camera GameObject; the installer picks
+    /// <c>InputSystemInputProvider</c> when <c>ENABLE_INPUT_SYSTEM</c>
+    /// is defined and falls back to
+    /// <see cref="LegacyUnityInputProvider"/> otherwise (ADR-0018).
     /// </para>
     /// <para>
     /// Camera state has three dimensions: a focus point on the ground
@@ -87,6 +90,10 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void Update()
         {
+            // Lazy re-resolution covers two cases:
+            //   1. CameraInputInstaller.AddComponent ran after our Awake.
+            //   2. Buyer scripts attached a provider at runtime.
+            if (_input == null) ResolveInput();
             if (_input == null) return;
 
             ApplyPan();
@@ -100,10 +107,21 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void ResolveInput()
         {
-            if (_inputSource != null && _inputSource is ICameraInput direct)
+            if (_inputSource != null)
             {
-                _input = direct;
-                return;
+                if (_inputSource is ICameraInput direct)
+                {
+                    _input = direct;
+                    return;
+                }
+                // _inputSource may be a CameraInputInstaller (or any MonoBehaviour
+                // sitting on the GameObject that holds the actual provider).
+                ICameraInput sibling = _inputSource.GetComponent<ICameraInput>();
+                if (sibling != null)
+                {
+                    _input = sibling;
+                    return;
+                }
             }
             _input = GetComponent<ICameraInput>();
         }

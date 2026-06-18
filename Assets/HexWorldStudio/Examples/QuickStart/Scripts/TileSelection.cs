@@ -90,10 +90,21 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void ResolveInput()
         {
-            if (_inputSource != null && _inputSource is ICameraInput direct)
+            if (_inputSource != null)
             {
-                _input = direct;
-                return;
+                if (_inputSource is ICameraInput direct)
+                {
+                    _input = direct;
+                    return;
+                }
+                // _inputSource may be a CameraInputInstaller (or any MonoBehaviour
+                // sitting on the GameObject that holds the actual provider).
+                ICameraInput sibling = _inputSource.GetComponent<ICameraInput>();
+                if (sibling != null)
+                {
+                    _input = sibling;
+                    return;
+                }
             }
             _input = GetComponent<ICameraInput>();
         }
