@@ -22,7 +22,7 @@ MonoBehaviour:
   MaxMoisture: 1
   AllowedFeatures:
   - {fileID: 11400000, guid: c3bc143b729541cb82e2ba7bd709a968, type: 2}
-  - {fileID: 11400000, guid: 16aeaeea4a94420eaf6e2e4c283e258d, type: 2}
+  - {fileID: 11400000, guid: b01b02c3d4e5f6a74b8c9d0e1f2a3b4c, type: 2}
   - {fileID: 11400000, guid: fbb6cce234164583825f61df1d3856e3, type: 2}
   - {fileID: 11400000, guid: c55e938badd9413b9662237978312467, type: 2}
   - {fileID: 11400000, guid: 7a452e8e962841369d9db4c57ac23a1b, type: 2}
