@@ -16,7 +16,7 @@ namespace HexWorldStudio.Content
     /// envelopes are unused at runtime (water classifies by topology,
     /// not climate).
     /// </remarks>
-    internal static class BiomeEnvelopeCoverage
+    public static class BiomeEnvelopeCoverage
     {
         /// <summary>Sample grid resolution for gap detection. Fixed for deterministic test output.</summary>
         public const int SampleResolution = 21;
