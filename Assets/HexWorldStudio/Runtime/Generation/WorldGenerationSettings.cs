@@ -58,6 +58,14 @@ namespace HexWorldStudio.Generation
         /// </summary>
         public const float DefaultFeatureCohesion = 0.3f;
 
+        /// <summary>
+        /// Default continent-shape algorithm. Mirrors the historical
+        /// Slice-5 behavior: cylindrical Perlin percentile threshold
+        /// producing several medium-sized landmasses. See
+        /// <see cref="ContinentShapeAlgorithm"/> and ADR-0020.
+        /// </summary>
+        public const ContinentShapeAlgorithm DefaultContinentShape = ContinentShapeAlgorithm.Continents;
+
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
 
@@ -125,6 +133,18 @@ namespace HexWorldStudio.Generation
         public float FeatureCohesion { get; }
 
         /// <summary>
+        /// Which continent-shape algorithm fills the
+        /// <c>ContinentShapeStage</c> pipeline slot. See
+        /// <see cref="ContinentShapeAlgorithm"/> for the catalog of
+        /// shipped algorithms (Continents, Pangaea, Archipelago,
+        /// Fractal, InlandSea, Lakes, Shuffle). Default
+        /// <see cref="DefaultContinentShape"/> preserves the
+        /// historical Slice-5 behavior so existing seeds map to the
+        /// same world unless the algorithm is explicitly changed.
+        /// </summary>
+        public ContinentShapeAlgorithm ContinentShapeAlgorithm { get; }
+
+        /// <summary>
         /// Constructs a settings instance with the default
         /// <see cref="LandRatio"/> and an empty biome set. Generation
         /// will fail at <c>HexWorldGenerator.Generate</c> because the
@@ -176,8 +196,9 @@ namespace HexWorldStudio.Generation
         }
 
         /// <summary>
-        /// Constructs a fully-specified settings instance including
-        /// the cohesion sliders.
+        /// Constructs a settings instance with explicit cohesion
+        /// values; the continent-shape algorithm uses its default
+        /// (<see cref="DefaultContinentShape"/>).
         /// </summary>
         /// <param name="width">Number of columns. Must be positive at generation time.</param>
         /// <param name="height">Number of rows. Must be positive at generation time.</param>
@@ -201,6 +222,44 @@ namespace HexWorldStudio.Generation
         public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
                                        IReadOnlyList<BiomeDefinition> biomes,
                                        float biomeCohesion, float featureCohesion)
+            : this(width, height, seed, landRatio, biomes,
+                   biomeCohesion, featureCohesion, DefaultContinentShape)
+        {
+        }
+
+        /// <summary>
+        /// Constructs a fully-specified settings instance including
+        /// the cohesion sliders and the continent-shape algorithm
+        /// selection.
+        /// </summary>
+        /// <param name="width">Number of columns. Must be positive at generation time.</param>
+        /// <param name="height">Number of rows. Must be positive at generation time.</param>
+        /// <param name="seed">The 64-bit RNG seed.</param>
+        /// <param name="landRatio">
+        /// Target proportion of land tiles. Must be strictly between
+        /// 0 and 1 at generation time.
+        /// </param>
+        /// <param name="biomes">
+        /// Biome content set; same structural requirements as the
+        /// shorter constructor overload.
+        /// </param>
+        /// <param name="biomeCohesion">
+        /// Strength of post-assignment biome smoothing in
+        /// <c>[0, 1]</c>. See <see cref="BiomeCohesion"/>.
+        /// </param>
+        /// <param name="featureCohesion">
+        /// Strength of post-placement feature smoothing in
+        /// <c>[0, 1]</c>. See <see cref="FeatureCohesion"/>.
+        /// </param>
+        /// <param name="continentShapeAlgorithm">
+        /// Which continent-shape algorithm fills the
+        /// <c>ContinentShapeStage</c> pipeline slot. See
+        /// <see cref="ContinentShapeAlgorithm"/>.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
+                                       IReadOnlyList<BiomeDefinition> biomes,
+                                       float biomeCohesion, float featureCohesion,
+                                       ContinentShapeAlgorithm continentShapeAlgorithm)
         {
             Width = width;
             Height = height;
@@ -209,6 +268,7 @@ namespace HexWorldStudio.Generation
             Biomes = biomes;
             BiomeCohesion = biomeCohesion;
             FeatureCohesion = featureCohesion;
+            ContinentShapeAlgorithm = continentShapeAlgorithm;
         }
     }
 }

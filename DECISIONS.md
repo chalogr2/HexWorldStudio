@@ -532,3 +532,50 @@ The pipeline ordering is fixed: cohesion stages always immediately follow the st
 - Feature smoothing's candidate set is the tile's biome's `AllowedFeatures` array: a smoothing pass can never put a Forest on an Arid biome whose allow-list has no forests. The test `Execute_NeverFlipsToFeatureNotInBiomeAllowList` pins this contract.
 - Both stages are members of the default pipeline in `HexWorldGenerator.BuildDefaultPipeline`, always included regardless of the slider value. The early no-op at strength 0 makes them effectively free when off.
 - `WorldGenerationSettings` exposes the two sliders as read-only properties set via constructor. The new 7-arg constructor is the primary; the legacy 5-arg constructor delegates to it with default cohesion values, so existing callers compile unchanged. `WorldGeneratorBootstrap` exposes both as `[Range(0, 1)]` inspector sliders under a "Cohesion" header so buyers find them grouped with related rendering / generation knobs.
+
+---
+
+## ADR-0020 — Pluggable continent-shape algorithms (Civ map-type catalog)
+
+**Date:** 2026-06-23
+**Status:** Accepted
+
+**Decision:**
+The `ContinentShapeStage` pipeline slot becomes a thin dispatcher that routes to one of seven concrete continent-shape algorithms named by the new public enum `ContinentShapeAlgorithm`:
+
+| Value | Description |
+|---|---|
+| `Continents` (default) | Single-octave cylindrical Perlin percentile threshold — multiple medium-sized landmasses. Historical Slice-5 behavior. |
+| `Pangaea` | Lower-frequency Perlin biased toward mid-row by a vertical Gaussian — one large supercontinent in temperate latitudes, water at the poles. |
+| `Archipelago` | Higher-frequency 2-octave fBm — many small islands. |
+| `Fractal` | 6-octave fBm at medium base frequency — irregular coastlines with fjords and peninsulas. |
+| `InlandSea` | Inverse Pangaea: Perlin minus a mid-row Gaussian — land ring around a central inland sea. |
+| `Lakes` | Highest-frequency fBm — mostly land with scattered small water bodies. |
+| `Shuffle` | Picks one of the six non-Shuffle algorithms uniformly via the seeded RNG and dispatches to it. |
+
+Every concrete algorithm is implemented as a private static method on `ContinentShapeAlgorithms`. Each forks the master RNG with its own label (`"noise-continent-shape"` for Continents, `"noise-continent-pangaea"` for Pangaea, etc.) so adding or reordering algorithms does not shift the seeded stream observed by any existing-seed Continents user. Each algorithm finishes by handing its per-tile sample field to a shared percentile-threshold helper so `LandRatio` is honored regardless of any bias gradient the algorithm applied to the noise.
+
+The selection is read off `WorldGenerationSettings.ContinentShapeAlgorithm`. A new 8-arg constructor on `WorldGenerationSettings` is the primary; the previous 7-arg (cohesion) constructor delegates with `DefaultContinentShape = Continents` so existing call sites still compile. `WorldGeneratorBootstrap` exposes the choice as an inspector enum field next to the biome roster.
+
+**Alternatives considered:**
+
+- *One `IGenerationStage` implementation per algorithm, plus a `HexWorldGenerator` overload that builds the pipeline per-Generate.* Closer to the literal reading of ADR-0010 "pluggable per slot" and natural for buyer-authored algorithms. Rejected for v1: builds friction into pipeline construction (must rebuild the array every Generate), bloats the file count for what is fundamentally one slot's content, and pushes the buyer-extension surface across an `internal` interface that has to flip `public` to be useful. Revisit when buyer-extensible pipelines land (v1.1 stretch).
+- *Per-algorithm class implementing an `IContinentShapeAlgorithm` interface, with the dispatcher resolving by enum-keyed dictionary.* More OO-shaped but adds an interface and a class per algorithm. The static-method approach gives identical behavior with less ceremony, and the catalog stays readable as a single switch.
+- *Continuous "blobbiness" / "fractalness" sliders instead of a discrete enum.* Continuous sliders are appealing but make the catalog harder to reason about for a buyer who actually wants Pangaea — they have to find the right cocktail of values. The discrete enum mirrors Civ's UX where buyers pick a named map type. Rejected.
+- *Embed Civ's "Terra" as its own algorithm.* Terra is geographically Continents but distinguished at *starting-position* time (one continent is "Old World", the rest are "New World"). The geography piece is identical to Continents until starting positions land in a later slice, so adding Terra now would just alias to Continents. Rejected for now; revisit alongside the starting-positions slice.
+- *Highlands, Small Continents, Island Plates, Mirror, Continents Plus as separate enum values.* Each would have to be implemented in this slice or the enum becomes a lie. Rejected for v1 — the seven shipped algorithms cover the dominant Civ catalog and the dispatcher pattern makes adding more a small-diff follow-up slice.
+
+**Reasoning:**
+Buyers expect Civ-style map type variety as a core feature of any procedural-world tool of this scope; "Continents only" feels incomplete. A small, named catalog backed by a single enum is the lowest-friction way to expose that variety: one inspector field, one settings property, one switch statement, one ADR. Each algorithm is independently small enough to read in a minute and tune by adjusting its noise constants — buyers who want to fork an algorithm have a straightforward starting point.
+
+The shared percentile-threshold helper means every algorithm honors `LandRatio` exactly regardless of any vertical or radial bias the algorithm applies to its noise field. That preserves a property buyers depend on (a small map at 0.4 ratio always has ~40% land, no matter the algorithm) without each algorithm having to bookkeep its own count.
+
+Distinct RNG fork labels per algorithm decouple seeded streams — a buyer pinning a Pangaea seed gets the same world regardless of whether `Continents` or `Lakes` happens to be reordered or replaced later. This same principle protected the Continents algorithm from byte-shifting in this slice's refactor: its label (`"noise-continent-shape"`) is unchanged from Slice 5, so every existing buyer-pinned Continents seed produces the identical world before and after Slice 13.
+
+**Implementation note:**
+
+- `ContinentShapeAlgorithms.Apply` is the single switch dispatch. Unknown enum values fall back to `Continents` so a stale serialized settings asset still produces a runnable world.
+- `Shuffle` draws from an explicit hardcoded pool (`s_ShufflePool`) rather than iterating the enum — protects existing Shuffle-seeded worlds from shifting when new enum values are appended.
+- The vertical-bias algorithms (`Pangaea`, `InlandSea`) operate on the normalized row position (`r ∈ [0, 1]`) so they scale cleanly across map sizes — a 60-row Pangaea looks like the same shape as a 12-row one, scaled.
+- The Continents algorithm uses the exact same noise label, cells, and threshold formula as the pre-Slice-13 implementation. Existing Continents-seed tests (`ContinentShapeStageTests`) keep passing without modification — that's the byte-stability guarantee.
+- Tests cover, per algorithm: `LandRatio` honored within 2 tiles at 0.4 and 0.8 ratios; determinism across two runs with the same seed; Pangaea's mid-row land concentration; InlandSea's mid-row water concentration; Continents vs Pangaea producing visibly different outputs; the default-value contract (no explicit algorithm = Continents); and the router's null-context guard.

@@ -18,19 +18,19 @@ Each pipeline-stage role accepts any `IGenerationStage` implementation. The Civ-
 
 Continent-shape algorithms:
 
-- [x] Pure Perlin percentile-threshold (Slice 5 baseline / default)
-- [ ] Continents
+- [x] Continents — multiple medium landmasses (Slice 13 / ADR-0020; this is the historical Slice-5 percentile-threshold algorithm, now named explicitly as one entry in the catalog)
+- [x] Pangaea — one supercontinent in temperate latitudes (Slice 13)
+- [x] Archipelago — many small islands (Slice 13)
+- [x] Fractal — irregular fjord coastlines (Slice 13)
+- [x] Inland Sea — land ring around a central sea (Slice 13)
+- [x] Lakes — mostly land with scattered water bodies (Slice 13)
+- [x] Shuffle — RNG-picks one of the above (Slice 13)
 - [ ] Continents Plus
-- [ ] Pangaea
-- [ ] Archipelago
-- [ ] Fractal
-- [ ] Inland Sea
 - [ ] Island Plates
-- [ ] Lakes
 - [ ] Highlands
 - [ ] Small Continents
 - [ ] Mirror
-- [ ] Shuffle / random pick from the above
+- [ ] Terra (geographically Continents; distinguished at starting-position time)
 - [ ] Custom buyer-supplied `IGenerationStage` (formal extension API is v1.1 candidate)
 
 Elevation, climate, hydrology, biome, and resource stages each get the same "pluggable per slot" treatment; additional implementations beyond the default are appended here as they are authored.

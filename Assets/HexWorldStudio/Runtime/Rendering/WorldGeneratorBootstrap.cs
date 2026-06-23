@@ -39,6 +39,12 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Biome content set. Drag in the 7 default .asset files (Ocean, Coast, Snow, Tundra, Arid, Temperate, Tropical) or your own.")]
         [SerializeField] private BiomeDefinition[] _biomes;
 
+        [Tooltip("Which continent-shape algorithm to use. Continents = default (multiple landmasses). " +
+                 "Pangaea = single supercontinent. Archipelago = many small islands. " +
+                 "Fractal = irregular coastlines with fjords. InlandSea = land ring around central sea. " +
+                 "Lakes = mostly land with scattered water. Shuffle = pick one at random per seed.")]
+        [SerializeField] private ContinentShapeAlgorithm _continentShapeAlgorithm = WorldGenerationSettings.DefaultContinentShape;
+
         [Header("Cohesion (continuity smoothing — ADR-0019)")]
 
         [Range(0f, 1f)]
@@ -114,7 +120,8 @@ namespace HexWorldStudio.Rendering
 
             var settings = new WorldGenerationSettings(
                 _width, _height, _seed, _landRatio, _biomes,
-                _biomeCohesion, _featureCohesion);
+                _biomeCohesion, _featureCohesion,
+                _continentShapeAlgorithm);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
 
