@@ -17,7 +17,14 @@ namespace HexWorldStudio.Rendering
     /// </remarks>
     public sealed class WorldGeneratorBootstrap : MonoBehaviour
     {
-        [Header("World")]
+        [Header("Preset (optional)")]
+        [Tooltip("Drag a WorldPreset asset here to override the per-field generation settings below. " +
+                 "When set, Width/Height/LandRatio/Biomes/Cohesion/ContinentShape are all read from the preset. " +
+                 "Seed and RandomizeSeedOnRegenerate stay on the bootstrap — the preset describes 'what kind " +
+                 "of world', the seed picks the instance.")]
+        [SerializeField] private WorldPreset _preset;
+
+        [Header("World (used when no preset is assigned)")]
         [Tooltip("Number of columns in the generated map.")]
         [SerializeField] private int _width = 32;
 
@@ -118,10 +125,15 @@ namespace HexWorldStudio.Rendering
                 _seed = PickRandomSeed();
             }
 
-            var settings = new WorldGenerationSettings(
-                _width, _height, _seed, _landRatio, _biomes,
-                _biomeCohesion, _featureCohesion,
-                _continentShapeAlgorithm);
+            // Preset wins when assigned — buyer-facing recipe for
+            // "what kind of world". Seed stays on the bootstrap so the
+            // same preset can produce many seeded worlds.
+            WorldGenerationSettings settings = _preset != null
+                ? _preset.ToSettings(_seed)
+                : new WorldGenerationSettings(
+                    _width, _height, _seed, _landRatio, _biomes,
+                    _biomeCohesion, _featureCohesion,
+                    _continentShapeAlgorithm);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
 

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4b6d8e0f2a14d4ea5b7c9d1e3f5a7b9, type: 3}
+  m_Name: Earthlike
+  m_EditorClassIdentifier:
+  Width: 32
+  Height: 20
+  LandRatio: 0.4
+  ContinentShapeAlgorithm: 0
+  BiomeCohesion: 0.5
+  FeatureCohesion: 0.3
+  Biomes:
+  - {fileID: 11400000, guid: 1e90b9698ab94b57a7117a56dac6752e, type: 2}
+  - {fileID: 11400000, guid: 396d27f0f05940988caf4c93a245e705, type: 2}
+  - {fileID: 11400000, guid: fc81d7330f5441bb8376333d3d87ce04, type: 2}
+  - {fileID: 11400000, guid: 95d63236f07647b3a896c9108a86bdfa, type: 2}
+  - {fileID: 11400000, guid: b80b7164a0a9448fa77332dbc3ed5397, type: 2}
+  - {fileID: 11400000, guid: a37cee65d7e0463a847c4deef6db70b0, type: 2}
+  - {fileID: 11400000, guid: 213da2f8bbb94e1b94ff81d9cac3e604, type: 2}

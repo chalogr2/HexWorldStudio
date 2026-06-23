@@ -579,3 +579,48 @@ Distinct RNG fork labels per algorithm decouple seeded streams — a buyer pinni
 - The vertical-bias algorithms (`Pangaea`, `InlandSea`) operate on the normalized row position (`r ∈ [0, 1]`) so they scale cleanly across map sizes — a 60-row Pangaea looks like the same shape as a 12-row one, scaled.
 - The Continents algorithm uses the exact same noise label, cells, and threshold formula as the pre-Slice-13 implementation. Existing Continents-seed tests (`ContinentShapeStageTests`) keep passing without modification — that's the byte-stability guarantee.
 - Tests cover, per algorithm: `LandRatio` honored within 2 tiles at 0.4 and 0.8 ratios; determinism across two runs with the same seed; Pangaea's mid-row land concentration; InlandSea's mid-row water concentration; Continents vs Pangaea producing visibly different outputs; the default-value contract (no explicit algorithm = Continents); and the router's null-context guard.
+
+---
+
+## ADR-0021 — `WorldPreset` ScriptableObject: named generation recipes
+
+**Date:** 2026-06-23
+**Status:** Accepted
+
+**Decision:**
+Introduce a `WorldPreset` ScriptableObject (in `HexWorldStudio.Content`) that bundles the per-generation configuration — `Width`, `Height`, `LandRatio`, `ContinentShapeAlgorithm`, `BiomeCohesion`, `FeatureCohesion`, `Biomes` — into a single asset. Buyers create presets via Create → Hex World Studio → World Preset, drop them into `WorldGeneratorBootstrap._preset` to apply, and ship them as reusable / shareable world recipes. `WorldPreset.ToSettings(seed)` builds a `WorldGenerationSettings` ready for `HexWorldGenerator.Generate`.
+
+The RNG seed deliberately does **not** live on the preset. A preset describes "what kind of world"; the seed picks an instance. The bootstrap (or any other consumer) supplies the seed at `ToSettings` time. Same preset + same seed → byte-identical world.
+
+The bootstrap reads the preset when assigned; when null it falls back to its per-field inspector values (preserving backward compatibility with existing scene wiring). Seed-related fields (`_seed`, `_randomizeSeedOnRegenerate`) stay on the bootstrap regardless because they are per-generation state, not per-preset content.
+
+Four worked-example presets ship under `Assets/HexWorldStudio/Content/Presets/`:
+- **Earthlike** — Continents, ratio 0.4 (default)
+- **Pangaea** — Pangaea, ratio 0.45
+- **Archipelago** — Archipelago, ratio 0.3
+- **InlandSea** — InlandSea, ratio 0.65 (high ratio so the ring forms)
+
+Each references the seven shipped biome assets in their `Biomes` field so the asset is immediately runnable.
+
+**Alternatives considered:**
+
+- *Make `WorldPreset` an MonoBehaviour-friendly `[Serializable]` class rather than a ScriptableObject.* Loses cross-scene reuse (every scene authors the bundle inline) and the natural shareability of an `.asset` file. Rejected.
+- *Bake the seed into the preset.* Preset would describe one specific world rather than a recipe; preset reuse for "regenerate with the same shape, different seed" would force buyers to author one preset per seed. Rejected.
+- *Replace bootstrap fields entirely (mandatory preset).* Cleaner conceptually but a breaking UX change for the QuickStart scene as currently wired. The preset-when-assigned-else-fields pattern keeps the asset friendly for newcomers and lets existing tutorials continue to work. Revisit once a generator window UI lands and presets become the dominant authoring affordance.
+- *Generic "preset" SO covering biome envelopes, feature placement weights, climate model parameters, etc., not just generation settings.* Out of scope for v1 — those configurations already live on `BiomeDefinition` / `TileFeatureDefinition` SOs and on the climate stage's hardcoded constants. A future "advanced preset" SO could compose multiple sub-presets, but introducing it now adds ceremony without solving a buyer-visible problem.
+- *`WorldGenerationSettings` as the SO directly.* Tried mentally; rejected because settings is currently a plain serializable class that may be constructed runtime-only (e.g., from network sync). Making it an SO forces Unity's serialization rules on it and breaks the construct-anywhere story. The two-types pattern (preset = asset; settings = runtime configuration object) keeps each role pure.
+
+**Reasoning:**
+The settings surface area has grown to seven fields. Buyers authoring multiple world types want to switch all of them at once rather than copy/paste seven values per type. A ScriptableObject preset is the conventional Unity solution: native inspector, native asset-database integration, native serialization, native packaging (presets ship as part of the asset and as part of buyer projects).
+
+Splitting "what kind of world" (preset) from "which instance" (seed) matches the way buyers actually think about generation: pick a map type, then roll seeds within it. Same preset → many worlds with the same character but different layouts. The factory method on the preset (`ToSettings(seed)`) makes that contract explicit at the API level.
+
+The four shipped presets cover the four most visually distinct algorithm types (Continents, Pangaea, Archipelago, InlandSea). Each is one click away in the Project window, and serves as a worked example for buyers authoring their own (duplicate, edit, save). Fractal, Lakes, and Shuffle are not shipped as named presets because they share a configuration shape with the others (Fractal ≈ Earthlike with a different algorithm; Lakes wants a different LandRatio; Shuffle's randomness makes it a meta-preset).
+
+**Implementation note:**
+
+- `WorldPreset` lives in `HexWorldStudio.Content` (next to `BiomeDefinition` / `TileFeatureDefinition`) because it is buyer-authored content, not runtime infrastructure. The runtime code calls into it via `ToSettings(seed)`.
+- `Biomes` is stored as an array (not `IReadOnlyList`) so Unity's serializer accepts it directly. `WorldGenerationSettings.Biomes` exposes it as `IReadOnlyList<BiomeDefinition>` via implicit C# variance.
+- The preset's `ContinentShapeAlgorithm` field is serialized as its enum int value (0..5, 99). The default is `Continents` so a freshly created preset asset runs without manual tweaking.
+- The bootstrap's preset slot is *optional*. Existing scene files with no preset reference compile unchanged and use the per-field values. The QuickStart scene keeps its existing per-field configuration; buyers wire in a preset when they want preset-driven generation.
+- Tests cover the round-trip contract (every preset field appears in the resulting settings unchanged), the seed-pass-through behavior, the default-value contract (defaults match the `WorldGenerationSettings.Default*` constants so a brand-new preset is runnable as soon as Biomes is wired), and the same-preset-different-seed independence pattern.
