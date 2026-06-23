@@ -496,3 +496,39 @@ Honoring both — and preferring the new system when both are available — is t
 - `InputSystemBootstrap` populates the factory at `BeforeSceneLoad` (Play / build) and at `InitializeOnLoad` (Editor / EditMode tests). The static field starts `null` and is idempotently set both ways, so legacy-only projects (where the InputSystem asmdef does not compile) never set it and the installer falls through to the legacy branch.
 - The `Examples/SampleScene` (Unity's template scene) and `Tests` assemblies are unchanged. Scene wiring change is limited to `QuickStartScene.unity`.
 - PlayMode tests for the new provider use `UnityEngine.InputSystem.InputTestFixture` (shipped inside the Input System package, available transitively via the `Tests.Runtime` asmdef referencing `Unity.InputSystem.TestFramework`). The whole test class is wrapped in `#if ENABLE_INPUT_SYSTEM` so legacy-only test runs skip it cleanly.
+
+---
+
+## ADR-0019 — Biome + Feature Cohesion via post-assignment iterative smoothing
+
+**Date:** 2026-06-23
+**Status:** Accepted
+
+**Decision:**
+Add two new pipeline stages — `BiomeCohesionStage` (runs immediately after `BiomeAssignmentStage`) and `FeatureCohesionStage` (runs immediately after `TileFeaturePlacementStage`) — that smooth single-tile speckling produced by the raw climate-envelope biome classification and the weighted feature placement. Each stage is driven by a single 0..1 strength slider on `WorldGenerationSettings` (`BiomeCohesion`, `FeatureCohesion`) which maps via `BiomeCohesionStage.FromStrength` to an integer `(iterations, threshold)` pair. At strength 0 the stage is a complete no-op so seeded worlds remain byte-identical to the pre-Slice-12 behavior when buyers park the slider at zero.
+
+The algorithm is the standard cellular-automaton neighbor-consensus pass, double-buffered for order independence: for `iterations` passes, snapshot every tile's current biome / feature; for each non-water tile, count neighbors that share the snapshot value; if fewer than `threshold` do, switch the tile to the most-common neighbor value, breaking ties via `WorldGenerationSettings.Biomes` order (for biome smoothing) or `BiomeDefinition.AllowedFeatures` order (for feature smoothing) so the result is deterministic for the same seed.
+
+**Alternatives considered:**
+
+- *Voronoi seed-and-grow biome regions.* Pick N seed tiles per biome, BFS outward until tiles are claimed. Produces strong blob continuity but is a wholly different placement algorithm — buyers can no longer reason about a tile's biome as "what climate matches at this point." Doesn't fit the Civ aesthetic, which is climate-driven first, smoothed second. Rejected.
+- *Pre-smoothing the climate fields (Temperature / Moisture noise).* Reduces the amount of high-frequency variation that crosses biome boundaries, so the raw classification produces fewer speckled cells. Couples blob size to a climate-model noise parameter rather than a buyer-facing "biome cohesion" knob, and forces an opinionated reduction in climate detail to fix what is really a *classification* artifact. Rejected.
+- *Per-biome cohesion knobs* (each `BiomeDefinition` carries its own cohesion strength so e.g. Snow can be very blobby and Coast not). Real flexibility but tripled the inspector surface and shifted the failure mode from "speckled deserts" to "buyers have to tune N knobs to get any improvement." Rejected for v1; the design leaves the door open by reading cohesion through the strength API, so a future ADR can supersede this one with per-biome strengths if data shows users want them.
+- *One combined stage parameterized by an enum (BiomeMode | FeatureMode).* Fewer files but more conditional plumbing inside one Execute method, and the two cases have meaningfully different constraints (water-skip for biomes; AllowedFeatures-restriction for features). Rejected — two small clear stages beat one larger conditional one.
+- *Continuous strength → continuous algorithm (e.g., probabilistic flip per tile).* Smooth slider behavior but non-discrete maps for the same (seed, settings) require a separate RNG fork to stay deterministic, and the visible effect at intermediate slider values isn't qualitatively different from the discrete `(iterations, threshold)` mapping. Rejected for simplicity.
+
+**Reasoning:**
+The visible problem is single-tile speckling at climate boundaries (Arid tiles dotting an otherwise-Temperate region, lone Forest tiles inside a Grassland sea). The standard cellular-automaton fix is order-independent, deterministic, and runs in linear time — no architectural shift, no climate-model retuning, no per-biome bookkeeping. One slider per stage covers the entire "spawning continuity" surface that buyers care about; "less clutter" was an explicit goal of the user's request.
+
+Two strength sliders rather than one because biomes and features should have different defaults: biomes want stronger smoothing (a single Arid tile in a Temperate sea looks wrong), features want lighter smoothing (a single Forest tile in a Grassland sea looks like natural diversity). The two values feed independent stages but share the same `FromStrength` mapping function so the buyer's mental model is simple — same slider semantics, two different defaults.
+
+The pipeline ordering is fixed: cohesion stages always immediately follow the stage they smooth. That guarantees a generator authored with cohesion-aware downstream stages (hydrology, resources, starting positions) sees the smoothed values, not the raw classification.
+
+**Implementation note:**
+
+- `BiomeCohesionStage.FromStrength` is `public static` so `FeatureCohesionStage` can share the mapping, and so EditMode tests can pin the contract independently of the stage's Execute method.
+- The strength→(iters, K) mapping: NaN / negative / 0 → `(0, 0)` no-op; otherwise `iters = max(1, round(strength * 4))`, `K = max(1, round(strength * 3))`. At 0.5 (the recommended Civ-like value) this yields `(2, 2)` — two iterations, "flip if fewer than 2 neighbors share my biome". At 1.0 it yields `(4, 3)` — aggressive smoothing.
+- Tile water-status is preserved: water-tile biomes are not smoothed (they are classified by neighbor topology in `BiomeAssignmentStage`), and water-biome neighbors are excluded from the land tile's tally so a coastal land tile never gets demoted to a water biome.
+- Feature smoothing's candidate set is the tile's biome's `AllowedFeatures` array: a smoothing pass can never put a Forest on an Arid biome whose allow-list has no forests. The test `Execute_NeverFlipsToFeatureNotInBiomeAllowList` pins this contract.
+- Both stages are members of the default pipeline in `HexWorldGenerator.BuildDefaultPipeline`, always included regardless of the slider value. The early no-op at strength 0 makes them effectively free when off.
+- `WorldGenerationSettings` exposes the two sliders as read-only properties set via constructor. The new 7-arg constructor is the primary; the legacy 5-arg constructor delegates to it with default cohesion values, so existing callers compile unchanged. `WorldGeneratorBootstrap` exposes both as `[Range(0, 1)]` inspector sliders under a "Cohesion" header so buyers find them grouped with related rendering / generation knobs.

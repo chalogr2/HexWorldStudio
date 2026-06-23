@@ -42,6 +42,22 @@ namespace HexWorldStudio.Generation
         /// </summary>
         public const float DefaultLandRatio = 0.4f;
 
+        /// <summary>
+        /// Default biome cohesion strength. 0.5 produces Civ-like mild
+        /// blobs out of the box without erasing legitimate biome
+        /// boundaries. See <see cref="BiomeCohesion"/> and ADR-0019.
+        /// </summary>
+        public const float DefaultBiomeCohesion = 0.5f;
+
+        /// <summary>
+        /// Default feature cohesion strength. Lower than the biome
+        /// default — feature variety inside a biome reads as natural
+        /// diversity, so we only collapse single-tile outliers at the
+        /// default setting. See <see cref="FeatureCohesion"/> and
+        /// ADR-0019.
+        /// </summary>
+        public const float DefaultFeatureCohesion = 0.3f;
+
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
 
@@ -86,6 +102,29 @@ namespace HexWorldStudio.Generation
         public IReadOnlyList<BiomeDefinition> Biomes { get; }
 
         /// <summary>
+        /// Strength of post-assignment biome cohesion smoothing in
+        /// <c>[0, 1]</c>. Drives <c>BiomeCohesionStage</c> (ADR-0019):
+        /// at 0 the stage is a no-op and biomes are placed exactly as
+        /// the climate envelope dictates; higher values progressively
+        /// snap outlier tiles to their neighbors' majority biome,
+        /// producing the coherent regions buyers expect from Civ-style
+        /// worlds. The mapping from this slider to (iterations,
+        /// threshold) lives in <c>BiomeCohesionStage.FromStrength</c>.
+        /// </summary>
+        public float BiomeCohesion { get; }
+
+        /// <summary>
+        /// Strength of post-placement feature cohesion smoothing in
+        /// <c>[0, 1]</c>. Drives <c>FeatureCohesionStage</c>
+        /// (ADR-0019) using the same mapping as
+        /// <see cref="BiomeCohesion"/>. The default is set lower than
+        /// <see cref="BiomeCohesion"/> because feature variety inside
+        /// a biome is desirable; only single-tile outliers should be
+        /// smoothed at the default setting.
+        /// </summary>
+        public float FeatureCohesion { get; }
+
+        /// <summary>
         /// Constructs a settings instance with the default
         /// <see cref="LandRatio"/> and an empty biome set. Generation
         /// will fail at <c>HexWorldGenerator.Generate</c> because the
@@ -110,7 +149,10 @@ namespace HexWorldStudio.Generation
         }
 
         /// <summary>
-        /// Constructs a fully-specified settings instance.
+        /// Constructs a settings instance with explicit dimensions,
+        /// seed, land ratio, and biome content; cohesion sliders use
+        /// their defaults (<see cref="DefaultBiomeCohesion"/> /
+        /// <see cref="DefaultFeatureCohesion"/>).
         /// </summary>
         /// <param name="width">Number of columns. Must be positive at generation time.</param>
         /// <param name="height">Number of rows. Must be positive at generation time.</param>
@@ -128,12 +170,45 @@ namespace HexWorldStudio.Generation
         /// </param>
         public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
                                        IReadOnlyList<BiomeDefinition> biomes)
+            : this(width, height, seed, landRatio, biomes,
+                   DefaultBiomeCohesion, DefaultFeatureCohesion)
+        {
+        }
+
+        /// <summary>
+        /// Constructs a fully-specified settings instance including
+        /// the cohesion sliders.
+        /// </summary>
+        /// <param name="width">Number of columns. Must be positive at generation time.</param>
+        /// <param name="height">Number of rows. Must be positive at generation time.</param>
+        /// <param name="seed">The 64-bit RNG seed.</param>
+        /// <param name="landRatio">
+        /// Target proportion of land tiles. Must be strictly between
+        /// 0 and 1 at generation time.
+        /// </param>
+        /// <param name="biomes">
+        /// Biome content set; same structural requirements as the
+        /// shorter constructor overload.
+        /// </param>
+        /// <param name="biomeCohesion">
+        /// Strength of post-assignment biome smoothing in
+        /// <c>[0, 1]</c>. See <see cref="BiomeCohesion"/>.
+        /// </param>
+        /// <param name="featureCohesion">
+        /// Strength of post-placement feature smoothing in
+        /// <c>[0, 1]</c>. See <see cref="FeatureCohesion"/>.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
+                                       IReadOnlyList<BiomeDefinition> biomes,
+                                       float biomeCohesion, float featureCohesion)
         {
             Width = width;
             Height = height;
             Seed = seed;
             LandRatio = landRatio;
             Biomes = biomes;
+            BiomeCohesion = biomeCohesion;
+            FeatureCohesion = featureCohesion;
         }
     }
 }

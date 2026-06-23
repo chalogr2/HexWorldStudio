@@ -84,6 +84,15 @@ WorldGenerationSettings (seed, dimensions, preset, content refs)
 [6] BiomeAssignment — Whittaker-style classification from SO content
         │
         ▼
+[6a] BiomeCohesion — neighbor-consensus smoothing of single-tile
+        │              speckling (ADR-0019); no-op at strength 0
+        ▼
+[6b] TileFeaturePlacement — weighted Gaussian-falloff feature pick
+        │              per biome (ADR-0014)
+        ▼
+[6c] FeatureCohesion — same smoothing for features, restricted to
+        │              the tile's biome AllowedFeatures
+        ▼
 [7] HydrologyPass — carve river system: assign edge-based non-navigable
         │              segments and tile-based navigable segments;
         │              compute transitions along the flow
@@ -119,6 +128,8 @@ Stages are internal types implementing a small `IGenerationStage` interface. The
 **Prefab tile visuals** (ADR-0017): `BiomeDefinition` and `TileFeatureDefinition` each expose an optional `public GameObject Prefab;` field. `WorldRenderer.BuildTileGameObject` resolves the visual in feature-wins precedence: `tile.Feature?.Prefab` → `tile.Biome?.Prefab` → procedural `HexMesh` + per-tile `MaterialPropertyBlock` (unchanged when both prefabs are null). The tile root always carries `HexTileBinding` plus a flat-`HexMesh` `MeshCollider` regardless of which visual path is chosen, so Slice 9 picking continues to work even on buyer prefabs that supply no colliders of their own. Data layer (`HexTile`) carries no GameObject references — the prefab lives on the ScriptableObject content, not the tile. Slice 10.1 adds prefab variants + per-tile deterministic Y rotation; Slice 10.2 bundles the CC0 Kenney Hexagon Kit and a sample biome→prefab mapping.
 
 **Dual input provider** (ADR-0018): the demo input layer ships two `ICameraInput` implementations and a runtime installer that picks the right one. `Runtime/Input/LegacyUnityInputProvider.cs` reads `UnityEngine.Input`, with every call site wrapped in `#if ENABLE_LEGACY_INPUT_MANAGER` so it stubs out cleanly under new-only projects instead of throwing `InvalidOperationException`. `Runtime/Input/InputSystem/` is a separate asmdef (`HexWorldStudio.Runtime.InputSystem`) with `defineConstraints: ["ENABLE_INPUT_SYSTEM"]` and a hard reference to `Unity.InputSystem`; it carries `InputSystemInputProvider.cs` (mirrors the legacy provider's semantics on top of `Keyboard.current` / `Mouse.current`) and `InputSystemBootstrap.cs` (a tiny `[RuntimeInitializeOnLoadMethod]` / `[InitializeOnLoadMethod]` that registers a factory on `CameraInputInstaller.InputSystemFactory`). `Runtime/Input/CameraInputInstaller.cs` is a `MonoBehaviour` on the `QuickStartScene`'s camera GameObject; on `Awake` it calls the registered factory if one is present (new system path) and falls back to `LegacyUnityInputProvider` under `#if ENABLE_LEGACY_INPUT_MANAGER`. The static-delegate hook is the conventional Unity workaround for the cross-asmdef-reference problem the InputSystem-only sibling asmdef creates. `CivCameraController` keeps reading through `ICameraInput` via `GetComponent<ICameraInput>()` — no controller change. Net effect: the QuickStart scene plays under any of Unity's three `Active Input Handling` configurations (Legacy, New, Both) without buyers touching Player Settings.
+
+**Biome + Feature Cohesion** (ADR-0019): two post-classification smoothing stages eliminate single-tile speckling near biome and feature boundaries. `BiomeCohesionStage` runs immediately after `BiomeAssignmentStage`; `FeatureCohesionStage` runs immediately after `TileFeaturePlacementStage`. Each stage reads a single 0..1 strength slider from `WorldGenerationSettings` (`BiomeCohesion`, `FeatureCohesion`) and runs `N` iterations of neighbor-consensus smoothing — for each non-water tile, if fewer than `K` of its 6 neighbors share its current biome / feature, switch to the most-common neighbor value. Tie-breaking uses `WorldGenerationSettings.Biomes` order (for biomes) and `BiomeDefinition.AllowedFeatures` order (for features). Strength 0 is a complete no-op. Water tiles are preserved (their biomes come from topology in `BiomeAssignmentStage`, not from climate). Feature smoothing's candidate set is restricted to the current tile's biome's `AllowedFeatures` array so a smoothing pass can never violate biome-feature compatibility. The strength → (iterations, threshold) mapping lives in the public-static `BiomeCohesionStage.FromStrength` so tests and `FeatureCohesionStage` share it.
 
 ## Request-to-render flow
 

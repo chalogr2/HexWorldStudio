@@ -39,6 +39,20 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Biome content set. Drag in the 7 default .asset files (Ocean, Coast, Snow, Tundra, Arid, Temperate, Tropical) or your own.")]
         [SerializeField] private BiomeDefinition[] _biomes;
 
+        [Header("Cohesion (continuity smoothing — ADR-0019)")]
+
+        [Range(0f, 1f)]
+        [Tooltip("How aggressively neighboring tiles flip toward consensus to form coherent biome regions. " +
+                 "0 = raw classification (speckled at climate boundaries). " +
+                 "0.5 = Civ-like mild blobs (recommended). " +
+                 "1 = strong smoothing (large continuous regions, may erase small biomes).")]
+        [SerializeField] private float _biomeCohesion = WorldGenerationSettings.DefaultBiomeCohesion;
+
+        [Range(0f, 1f)]
+        [Tooltip("How aggressively neighboring tiles flip toward feature consensus. " +
+                 "Defaulted lower than biome cohesion so feature variety inside a biome reads as natural diversity.")]
+        [SerializeField] private float _featureCohesion = WorldGenerationSettings.DefaultFeatureCohesion;
+
         [Header("Rendering")]
         [Tooltip("World renderer that will draw the generated map. If null, this script searches its own GameObject and children.")]
         [SerializeField] private WorldRenderer _renderer;
@@ -98,7 +112,9 @@ namespace HexWorldStudio.Rendering
                 _seed = PickRandomSeed();
             }
 
-            var settings = new WorldGenerationSettings(_width, _height, _seed, _landRatio, _biomes);
+            var settings = new WorldGenerationSettings(
+                _width, _height, _seed, _landRatio, _biomes,
+                _biomeCohesion, _featureCohesion);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
 

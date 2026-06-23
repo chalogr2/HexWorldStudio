@@ -25,15 +25,17 @@ namespace HexWorldStudio.Generation
     /// on separate threads; a single instance is not thread-safe.
     /// </para>
     /// <para>
-    /// The default pipeline runs five stages in order: continent
+    /// The default pipeline runs eight stages in order: continent
     /// shape, elevation field, elevation-level quantization, climate,
-    /// and biome assignment. After <see cref="Generate"/> returns,
-    /// every tile carries a non-default <c>LandState</c>, a numeric
-    /// <c>Elevation</c> and <c>ElevationLevel</c>, a numeric
-    /// <c>Temperature</c> and <c>Moisture</c>, and a non-null
-    /// <c>Biome</c> reference. Later slices append further stages
-    /// (hydrology, resource placement, starting positions, post-
-    /// processing).
+    /// biome assignment, biome cohesion smoothing (ADR-0019), tile
+    /// feature placement, and feature cohesion smoothing (ADR-0019).
+    /// After <see cref="Generate"/> returns, every tile carries a
+    /// non-default <c>LandState</c>, a numeric <c>Elevation</c> and
+    /// <c>ElevationLevel</c>, a numeric <c>Temperature</c> and
+    /// <c>Moisture</c>, a non-null <c>Biome</c> reference, and a
+    /// (possibly null) <c>Feature</c> reference. Later slices append
+    /// further stages (hydrology, resource placement, starting
+    /// positions, post-processing).
     /// </para>
     /// <para>
     /// Settings validation lives here, not in
@@ -70,7 +72,9 @@ namespace HexWorldStudio.Generation
                 new ElevationLevelQuantizationStage(),
                 new ClimateStage(),
                 new BiomeAssignmentStage(),
+                new BiomeCohesionStage(),
                 new TileFeaturePlacementStage(),
+                new FeatureCohesionStage(),
             };
         }
 
