@@ -18,4 +18,4 @@ MonoBehaviour:
   Weight: 2
   IsImpassable: 0
   MovementCostMultiplier: 1
-  Prefab: {fileID: 6663657482294307716, guid: f5d994afdeaa6d7418482b2eddfaf0fc, type: 3}
+  Prefab: {fileID: 5040373484374950302, guid: 26319c2cb3cfa1f499322e7d6a7010b3, type: 3}

@@ -11,11 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Forest_Tropical
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Forest (Tropical / Jungle)
-  Color: {r: 0.10, g: 0.45, b: 0.18, a: 1}
+  Color: {r: 0.1, g: 0.45, b: 0.18, a: 1}
   PreferredElevationLevel: 2
   Weight: 1.5
   IsImpassable: 0
   MovementCostMultiplier: 1.5
-  Prefab: {fileID: 2654059083748178294, guid: 37fb9c6c01672bd44bc7168e4cb537cc, type: 3}
+  Prefab: {fileID: 2654059083748178294, guid: 2e0cf167922a3e945b680f46b025393d, type: 3}

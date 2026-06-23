@@ -11,12 +11,12 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f73ed2ba68c41d499f52be0ecad3933, type: 3}
   m_Name: Arid
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   BiomeName: Arid
   Color: {r: 0.8392157, g: 0.7137255, b: 0.41960785, a: 1}
   IsWater: 0
   IsCoastalWater: 0
-  MinTemperature: 0.4
+  MinTemperature: 0.6
   MaxTemperature: 1
   MinMoisture: 0
   MaxMoisture: 0.4
@@ -26,3 +26,4 @@ MonoBehaviour:
   - {fileID: 11400000, guid: fbb6cce234164583825f61df1d3856e3, type: 2}
   - {fileID: 11400000, guid: c55e938badd9413b9662237978312467, type: 2}
   - {fileID: 11400000, guid: 7a452e8e962841369d9db4c57ac23a1b, type: 2}
+  Prefab: {fileID: 0}

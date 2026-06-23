@@ -11,11 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Forest_Tundra
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Forest (Tundra / Taiga)
-  Color: {r: 0.20, g: 0.40, b: 0.20, a: 1}
+  Color: {r: 0.2, g: 0.4, b: 0.2, a: 1}
   PreferredElevationLevel: 2
   Weight: 1.5
   IsImpassable: 0
   MovementCostMultiplier: 1.5
-  Prefab: {fileID: 2654059083748178294, guid: 37fb9c6c01672bd44bc7168e4cb537cc, type: 3}
+  Prefab: {fileID: 2654059083748178294, guid: b0f8c86ffb12097409f9da921a768610, type: 3}

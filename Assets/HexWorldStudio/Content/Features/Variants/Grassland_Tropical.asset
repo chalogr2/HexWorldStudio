@@ -11,11 +11,11 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 73778e79909e42cc800c757ab9acd95d, type: 3}
   m_Name: Grassland_Tropical
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   FeatureName: Grassland (Tropical)
   Color: {r: 0.18, g: 0.65, b: 0.25, a: 1}
   PreferredElevationLevel: 1
   Weight: 2
   IsImpassable: 0
   MovementCostMultiplier: 1
-  Prefab: {fileID: 5040373484374950302, guid: d855ac5b2be23cb43b2ccf7870be95f9, type: 3}
+  Prefab: {fileID: 5040373484374950302, guid: a5f89214910477e41b918af9cac4e483, type: 3}

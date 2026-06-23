@@ -38,12 +38,12 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.18028378, g: 0.22571412, b: 0.30692285, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
   m_ObjectHideFlags: 0
-  serializedVersion: 12
+  serializedVersion: 13
+  m_BakeOnSceneLoad: 0
   m_GISettings:
     serializedVersion: 2
     m_BounceScale: 1
@@ -252,12 +252,49 @@ MonoBehaviour:
   m_RequiresColorTexture: 0
   m_Version: 2
   m_TaaSettings:
-    quality: 3
-    frameInfluence: 0.1
-    jitterScale: 1
-    mipBias: 0
-    varianceClampScale: 0.9
-    contrastAdaptiveSharpening: 0
+    m_Quality: 3
+    m_FrameInfluence: 0.1
+    m_JitterScale: 1
+    m_MipBias: 0
+    m_VarianceClampScale: 0.9
+    m_ContrastAdaptiveSharpening: 0
+--- !u!114 &330585550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f7b2e3a8d9c4d4ca1e5b6f9c0d1e2a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &330585551
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19e8317888024b058f8902160983412b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _inputSource: {fileID: 330585550}
+  _wrapRenderer: {fileID: 1500000004}
+  _panSpeed: 25
+  _zoomSpeed: 5
+  _minHeight: 6
+  _maxHeight: 80
+  _rotateSpeed: 90
+  _tiltSpeed: 60
+  _minTilt: 30
+  _maxTilt: 65
+  _defaultTilt: 50
+  _verticalSoftMin: -2
+  _verticalSoftMax: 32
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -338,6 +375,9 @@ Light:
   m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!4 &410087041
 Transform:
   m_ObjectHideFlags: 0
@@ -469,10 +509,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dedc7494a18d41d2bd83a707643fb0a7, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _elevationStep: 0.15
   _tileWorldScale: 1
+  _oceanRenderHeight: 0
+  _coastRiseAboveOcean: 0
+  _landRiseAboveWater: 0
 --- !u!114 &1500000003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -483,11 +526,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 21b04a3135df49fe97133a2b180ef637, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  _width: 32
-  _height: 20
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _width: 64
+  _height: 40
   _seed: 12345
+  _randomizeSeedOnRegenerate: 1
   _landRatio: 0.4
   _biomes:
   - {fileID: 11400000, guid: 1e90b9698ab94b57a7117a56dac6752e, type: 2}
@@ -510,47 +554,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4d95b1fc209346278d928272be276afb, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _renderer: {fileID: 1500000002}
   _worldTileWidth: 32
---- !u!114 &330585550
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 330585543}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4f7b2e3a8d9c4d4ca1e5b6f9c0d1e2a3, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
---- !u!114 &330585551
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 330585543}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 19e8317888024b058f8902160983412b, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
-  _inputSource: {fileID: 330585550}
-  _wrapRenderer: {fileID: 1500000004}
-  _panSpeed: 25
-  _zoomSpeed: 5
-  _minHeight: 6
-  _maxHeight: 80
-  _rotateSpeed: 90
-  _tiltSpeed: 60
-  _minTilt: 30
-  _maxTilt: 65
-  _defaultTilt: 50
-  _verticalSoftMin: -2
-  _verticalSoftMax: 32
 --- !u!1 &2000000000
 GameObject:
   m_ObjectHideFlags: 0
@@ -594,8 +601,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0d3ad24ca9134b9084a83cb4fa0c4be9, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _camera: {fileID: 330585545}
   _wrapRenderer: {fileID: 1500000004}
   _bootstrap: {fileID: 1500000003}
@@ -612,8 +619,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a95efbc45a8042118a2fa97eb9b77ba6, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _hover: {fileID: 2000000002}
   _bootstrap: {fileID: 1500000003}
   _inputSource: {fileID: 330585550}
