@@ -277,6 +277,21 @@ namespace HexWorldStudio.Rendering
                 }
             }
 
+            // Resource visual rotation snaps to one of the hex's six
+            // 60° sextants based on a stable per-coord hash, so the
+            // same world re-rendered produces the same orientation on
+            // every resource tile (no per-frame jitter, no RNG fork
+            // needed in the render path).
+            //
+            // Applies to BOTH render modes: the replacement prefab (in
+            // replace-tile mode) and the default add-on-top prefab.
+            // 60° steps preserve hex-grid alignment — every rotation
+            // still maps the prefab to a valid hex side.
+            if (replacedByResource && mainInstance != null)
+            {
+                mainInstance.transform.localRotation = Quaternion.Euler(0f, GetResourceRotationY(tile.Coord), 0f);
+            }
+
             // Optional resource visual layered on top of biome / feature
             // visuals (ADR-0022). Skipped entirely when the resource
             // already replaced the tile (ADR-0023); the replacement
@@ -294,10 +309,40 @@ namespace HexWorldStudio.Rendering
                     ? GetSurfaceY(mainPrefab, mainInstance, go.transform)
                     : 0f;
                 resourceVisual.transform.localPosition = new Vector3(0f, surfaceY, 0f);
-                resourceVisual.transform.localRotation = Quaternion.identity;
+                resourceVisual.transform.localRotation = Quaternion.Euler(0f, GetResourceRotationY(tile.Coord), 0f);
             }
 
             return go;
+        }
+
+        /// <summary>
+        /// Returns the deterministic resource-visual Y rotation (in
+        /// degrees) for a tile at the given coordinate. The result is
+        /// always one of <c>{0, 60, 120, 180, 240, 300}</c> so the
+        /// prefab faces one of the hex's six sides — hex-grid
+        /// alignment is preserved at every rotation.
+        /// </summary>
+        /// <remarks>
+        /// Pure function of <see cref="HexCoord.Q"/> and
+        /// <see cref="HexCoord.R"/>: same coord → same rotation across
+        /// re-renders and across machines (no Unity-side RNG involved).
+        /// Internal-visible so the EditMode test pin can assert the
+        /// snap-to-60 invariant.
+        /// </remarks>
+        internal static float GetResourceRotationY(HexCoord coord)
+        {
+            // Stable integer hash combining Q and R with large odd
+            // primes (Wang-style). The same primes used in many hex /
+            // grid hashing schemes; collisions inside the small map
+            // sizes the asset targets are not a concern because the
+            // value is reduced mod 6 anyway.
+            int hash = (coord.Q * 73856093) ^ (coord.R * 19349663);
+
+            // C# % preserves the sign of the dividend, which would
+            // produce negative sextants for negative hashes. Snap to
+            // [0, 5] with a defensive double-mod.
+            int sextant = ((hash % 6) + 6) % 6;
+            return sextant * 60f;
         }
 
         // Returns the tile-root-local Y of the visible top of the

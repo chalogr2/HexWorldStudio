@@ -151,5 +151,60 @@ namespace HexWorldStudio.Tests
             float y = WorldRenderer.ComputeTileY(null, OceanY, CoastRise, LandRise, ElevationStep);
             Assert.That(y, Is.EqualTo(OceanY + LandRise).Within(1e-5f));
         }
+
+        // ---- GetResourceRotationY (Slice 16.1) -------------------
+
+        [Test]
+        public void GetResourceRotationY_SnapsToMultipleOf60()
+        {
+            // Sample a wide range of (Q, R) coords (positive, negative,
+            // zero, mixed signs) and verify every result is one of
+            // {0, 60, 120, 180, 240, 300}. The snap-to-hex-side
+            // invariant is the whole point of the helper.
+            for (int q = -10; q <= 10; q++)
+            {
+                for (int r = -10; r <= 10; r++)
+                {
+                    float rot = WorldRenderer.GetResourceRotationY(new HexCoord(q, r));
+                    int snapped = Mathf.RoundToInt(rot);
+                    Assert.That(snapped % 60, Is.EqualTo(0),
+                        $"Rotation {rot} at ({q}, {r}) is not a multiple of 60.");
+                    Assert.That(rot, Is.InRange(0f, 300f),
+                        $"Rotation {rot} at ({q}, {r}) is outside the [0, 300] sextant range.");
+                }
+            }
+        }
+
+        [Test]
+        public void GetResourceRotationY_Deterministic_SameCoordSameRotation()
+        {
+            // Same (Q, R) on two separate calls must produce the same
+            // rotation — the helper is a pure function of the coord,
+            // re-renders never produce visual jitter.
+            HexCoord a = new HexCoord(5, 3);
+            float first = WorldRenderer.GetResourceRotationY(a);
+            float second = WorldRenderer.GetResourceRotationY(a);
+            Assert.That(second, Is.EqualTo(first).Within(1e-5f));
+        }
+
+        [Test]
+        public void GetResourceRotationY_AdjacentCoords_TypicallyDifferent()
+        {
+            // Not a strict mathematical guarantee (two adjacent tiles
+            // could hash to the same sextant), but the helper should
+            // produce visibly varied rotations across a small sample
+            // of neighboring coords — otherwise the random-rotation
+            // intent is lost.
+            int distinct = 0;
+            HexCoord center = new HexCoord(0, 0);
+            float centerRot = WorldRenderer.GetResourceRotationY(center);
+            int sampleSize = 20;
+            for (int i = 1; i <= sampleSize; i++)
+            {
+                if (Mathf.Abs(WorldRenderer.GetResourceRotationY(new HexCoord(i, 0)) - centerRot) > 1f) distinct++;
+            }
+            Assert.That(distinct, Is.GreaterThan(sampleSize / 3),
+                "Resource rotation should vary across neighboring tiles — sample produced unexpectedly uniform output.");
+        }
     }
 }
