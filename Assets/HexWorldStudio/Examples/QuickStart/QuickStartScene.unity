@@ -285,7 +285,7 @@ MonoBehaviour:
   _inputSource: {fileID: 330585550}
   _wrapRenderer: {fileID: 1500000004}
   _panSpeed: 25
-  _zoomSpeed: 5
+  _zoomSpeed: 20
   _minHeight: 6
   _maxHeight: 80
   _rotateSpeed: 90
@@ -294,7 +294,7 @@ MonoBehaviour:
   _maxTilt: 65
   _defaultTilt: 50
   _verticalSoftMin: -2
-  _verticalSoftMax: 32
+  _verticalSoftMax: 66
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -528,6 +528,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 21b04a3135df49fe97133a2b180ef637, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _preset: {fileID: 0}
   _width: 64
   _height: 40
   _seed: 12345
@@ -541,6 +542,29 @@ MonoBehaviour:
   - {fileID: 11400000, guid: b80b7164a0a9448fa77332dbc3ed5397, type: 2}
   - {fileID: 11400000, guid: a37cee65d7e0463a847c4deef6db70b0, type: 2}
   - {fileID: 11400000, guid: 213da2f8bbb94e1b94ff81d9cac3e604, type: 2}
+  _continentShapeAlgorithm: 3
+  _resources:
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a08000000000008, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a02000000000002, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a04000000000004, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a07000000000007, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a11000000000011, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a09000000000009, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a10000000000010, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a0e00000000000e, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a03000000000003, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a0c00000000000c, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a0d00000000000d, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a05000000000005, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a06000000000006, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a0f00000000000f, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a0a00000000000a, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a0b00000000000b, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a12000000000012, type: 2}
+  - {fileID: 11400000, guid: 2a4b6c8d0e1f4d4e0a01000000000001, type: 2}
+  _resourceDensity: 0.2
+  _biomeCohesion: 0.5
+  _featureCohesion: 0.3
   _renderer: {fileID: 1500000002}
   _wrapRenderer: {fileID: 1500000004}
   _generateOnStart: 1
