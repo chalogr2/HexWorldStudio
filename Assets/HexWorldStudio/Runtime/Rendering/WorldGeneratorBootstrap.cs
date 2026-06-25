@@ -52,6 +52,19 @@ namespace HexWorldStudio.Rendering
                  "Lakes = mostly land with scattered water. Shuffle = pick one at random per seed.")]
         [SerializeField] private ContinentShapeAlgorithm _continentShapeAlgorithm = WorldGenerationSettings.DefaultContinentShape;
 
+        [Header("Resources (optional — ADR-0022)")]
+
+        [Tooltip("Optional resource roster. Leave empty to disable resource placement entirely — the stage no-ops and no tile receives a resource. " +
+                 "Populate to enable: drop ResourceDefinition assets here, hit Regenerate, and resources appear on eligible tiles.")]
+        [SerializeField] private ResourceDefinition[] _resources;
+
+        [Range(0f, 1f)]
+        [Tooltip("Per-tile probability of attempting a resource placement. " +
+                 "0 = no placements (effectively the same as empty resource roster). " +
+                 "0.2 = Civ-style density (default; ~one in five eligible tiles attempts a placement, with per-resource spacing filtering further). " +
+                 "1 = attempt placement on every tile (still gated by eligibility filters).")]
+        [SerializeField] private float _resourceDensity = WorldGenerationSettings.DefaultResourceDensity;
+
         [Header("Cohesion (continuity smoothing — ADR-0019)")]
 
         [Range(0f, 1f)]
@@ -133,7 +146,8 @@ namespace HexWorldStudio.Rendering
                 : new WorldGenerationSettings(
                     _width, _height, _seed, _landRatio, _biomes,
                     _biomeCohesion, _featureCohesion,
-                    _continentShapeAlgorithm);
+                    _continentShapeAlgorithm,
+                    _resources, _resourceDensity);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
 

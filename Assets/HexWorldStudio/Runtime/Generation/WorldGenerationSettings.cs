@@ -66,6 +66,15 @@ namespace HexWorldStudio.Generation
         /// </summary>
         public const ContinentShapeAlgorithm DefaultContinentShape = ContinentShapeAlgorithm.Continents;
 
+        /// <summary>
+        /// Default per-tile probability of attempting a resource
+        /// placement when the resource roster is non-empty. Civ-style
+        /// density — roughly one-in-five eligible tiles attempts a
+        /// placement, with spacing constraints filtering further. See
+        /// ADR-0022.
+        /// </summary>
+        public const float DefaultResourceDensity = 0.2f;
+
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
 
@@ -143,6 +152,32 @@ namespace HexWorldStudio.Generation
         /// same world unless the algorithm is explicitly changed.
         /// </summary>
         public ContinentShapeAlgorithm ContinentShapeAlgorithm { get; }
+
+        /// <summary>
+        /// Optional resource roster passed to
+        /// <c>ResourcePlacementStage</c>. Empty or <c>null</c> = no
+        /// resources are placed (the stage no-ops; see ADR-0022).
+        /// Each entry is a <see cref="ResourceDefinition"/> describing
+        /// what biome / feature / elevation it requires and how
+        /// frequently it spawns.
+        /// </summary>
+        /// <remarks>
+        /// Stored by reference (no defensive copy) so buyer-side
+        /// hot-edit flows work. Mutating the list mid-generation is
+        /// undefined behavior, same as the biome roster contract.
+        /// </remarks>
+        public IReadOnlyList<ResourceDefinition> Resources { get; }
+
+        /// <summary>
+        /// Per-tile probability of attempting a resource placement in
+        /// <c>[0, 1]</c>. <c>0</c> disables placement even when the
+        /// resource roster is populated; <c>1</c> attempts placement
+        /// on every tile (the actual placement rate is still bounded
+        /// by per-resource eligibility filters and spacing). Default
+        /// <see cref="DefaultResourceDensity"/> approximates Civ-style
+        /// resource density.
+        /// </summary>
+        public float ResourceDensity { get; }
 
         /// <summary>
         /// Constructs a settings instance with the default
@@ -260,6 +295,40 @@ namespace HexWorldStudio.Generation
                                        IReadOnlyList<BiomeDefinition> biomes,
                                        float biomeCohesion, float featureCohesion,
                                        ContinentShapeAlgorithm continentShapeAlgorithm)
+            : this(width, height, seed, landRatio, biomes,
+                   biomeCohesion, featureCohesion, continentShapeAlgorithm,
+                   resources: null, resourceDensity: DefaultResourceDensity)
+        {
+        }
+
+        /// <summary>
+        /// Full constructor including the optional resource roster.
+        /// Resource placement is opt-in per ADR-0022: when
+        /// <paramref name="resources"/> is null or empty, the
+        /// <c>ResourcePlacementStage</c> is a no-op.
+        /// </summary>
+        /// <param name="width">Number of columns. Must be positive.</param>
+        /// <param name="height">Number of rows. Must be positive.</param>
+        /// <param name="seed">The 64-bit RNG seed.</param>
+        /// <param name="landRatio">Target land proportion in <c>(0, 1)</c>.</param>
+        /// <param name="biomes">Biome content set; structural requirements per the shorter ctor.</param>
+        /// <param name="biomeCohesion">Biome smoothing strength in <c>[0, 1]</c>.</param>
+        /// <param name="featureCohesion">Feature smoothing strength in <c>[0, 1]</c>.</param>
+        /// <param name="continentShapeAlgorithm">Continent-shape algorithm choice.</param>
+        /// <param name="resources">
+        /// Resource content set. <c>null</c> or empty = no resources
+        /// placed.
+        /// </param>
+        /// <param name="resourceDensity">
+        /// Per-tile placement probability in <c>[0, 1]</c>. <c>0</c>
+        /// disables placement even when resources is non-empty.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
+                                       IReadOnlyList<BiomeDefinition> biomes,
+                                       float biomeCohesion, float featureCohesion,
+                                       ContinentShapeAlgorithm continentShapeAlgorithm,
+                                       IReadOnlyList<ResourceDefinition> resources,
+                                       float resourceDensity)
         {
             Width = width;
             Height = height;
@@ -269,6 +338,8 @@ namespace HexWorldStudio.Generation
             BiomeCohesion = biomeCohesion;
             FeatureCohesion = featureCohesion;
             ContinentShapeAlgorithm = continentShapeAlgorithm;
+            Resources = resources;
+            ResourceDensity = resourceDensity;
         }
     }
 }

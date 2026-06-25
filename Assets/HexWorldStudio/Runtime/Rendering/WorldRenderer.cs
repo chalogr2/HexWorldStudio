@@ -238,6 +238,18 @@ namespace HexWorldStudio.Rendering
                 }
             }
 
+            // Optional resource visual layered on top of biome / feature
+            // visuals (ADR-0022). Resource placement is opt-in — when no
+            // resource is assigned to the tile or its prefab is null,
+            // this is a no-op. The flat-hex MeshCollider on the tile
+            // root still drives picking regardless of resource geometry.
+            if (tile.Resource != null && tile.Resource.Prefab != null)
+            {
+                var resourceVisual = Object.Instantiate(tile.Resource.Prefab, go.transform);
+                resourceVisual.transform.localPosition = Vector3.zero;
+                resourceVisual.transform.localRotation = Quaternion.identity;
+            }
+
             return go;
         }
 

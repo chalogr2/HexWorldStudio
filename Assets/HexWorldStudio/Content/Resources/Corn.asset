@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
+  m_Name: Corn
+  m_EditorClassIdentifier:
+  ResourceName: Corn
+  Color: {r: 0.98, g: 0.85, b: 0.20, a: 1}
+  Prefab: {fileID: 0}
+  AllowedBiomes:
+  - {fileID: 11400000, guid: a37cee65d7e0463a847c4deef6db70b0, type: 2}
+  AllowedFeatures:
+  - {fileID: 11400000, guid: da73482701a645eb9bf386127df29feb, type: 2}
+  - {fileID: 11400000, guid: a02b02c3d4e5f6a74b8c9d0e1f2a3b4c, type: 2}
+  MinElevationLevel: 0
+  MaxElevationLevel: 2
+  Rarity: 1
+  MinimumSpacing: 2

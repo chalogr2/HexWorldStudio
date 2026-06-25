@@ -110,6 +110,24 @@ namespace HexWorldStudio.Content
                  "Drag in the seven shipped .asset files or your own.")]
         public BiomeDefinition[] Biomes;
 
+        [Header("Resources (optional — ADR-0022)")]
+
+        /// <summary>
+        /// Optional resource roster. Empty or <c>null</c> = no
+        /// resources placed (the <c>ResourcePlacementStage</c> no-ops).
+        /// Populate to opt in.
+        /// </summary>
+        [Tooltip("Optional resource roster. Empty = no resources. Populate to enable resource placement.")]
+        public ResourceDefinition[] Resources;
+
+        /// <summary>
+        /// Per-tile placement probability in <c>[0, 1]</c>. Default
+        /// matches <see cref="WorldGenerationSettings.DefaultResourceDensity"/>.
+        /// </summary>
+        [Range(0f, 1f)]
+        [Tooltip("Per-tile resource placement probability. 0 = no resources. 0.2 = Civ-style default. 1 = attempt every tile.")]
+        public float ResourceDensity = WorldGenerationSettings.DefaultResourceDensity;
+
         /// <summary>
         /// Bundles this preset's fields together with a per-generation
         /// <paramref name="seed"/> into a fresh
@@ -126,7 +144,8 @@ namespace HexWorldStudio.Content
             return new WorldGenerationSettings(
                 Width, Height, seed, LandRatio, Biomes,
                 BiomeCohesion, FeatureCohesion,
-                ContinentShapeAlgorithm);
+                ContinentShapeAlgorithm,
+                Resources, ResourceDensity);
         }
     }
 }

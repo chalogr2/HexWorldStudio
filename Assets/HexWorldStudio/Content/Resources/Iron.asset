@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
+  m_Name: Iron
+  m_EditorClassIdentifier:
+  ResourceName: Iron
+  Color: {r: 0.45, g: 0.50, b: 0.55, a: 1}
+  Prefab: {fileID: 0}
+  AllowedBiomes: []
+  AllowedFeatures:
+  - {fileID: 11400000, guid: fbb6cce234164583825f61df1d3856e3, type: 2}
+  - {fileID: 11400000, guid: c55e938badd9413b9662237978312467, type: 2}
+  - {fileID: 11400000, guid: 7a452e8e962841369d9db4c57ac23a1b, type: 2}
+  MinElevationLevel: 2
+  MaxElevationLevel: 5
+  Rarity: 0.5
+  MinimumSpacing: 3

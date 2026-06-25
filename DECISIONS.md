@@ -624,3 +624,44 @@ The four shipped presets cover the four most visually distinct algorithm types (
 - The preset's `ContinentShapeAlgorithm` field is serialized as its enum int value (0..5, 99). The default is `Continents` so a freshly created preset asset runs without manual tweaking.
 - The bootstrap's preset slot is *optional*. Existing scene files with no preset reference compile unchanged and use the per-field values. The QuickStart scene keeps its existing per-field configuration; buyers wire in a preset when they want preset-driven generation.
 - Tests cover the round-trip contract (every preset field appears in the resulting settings unchanged), the seed-pass-through behavior, the default-value contract (defaults match the `WorldGenerationSettings.Default*` constants so a brand-new preset is runnable as soon as Biomes is wired), and the same-preset-different-seed independence pattern.
+
+---
+
+## ADR-0022 — Optional resource placement: `ResourceDefinition` SO + opt-in `ResourcePlacementStage`
+
+**Date:** 2026-06-25
+**Status:** Accepted
+
+**Decision:**
+Add a ninth pipeline stage, `ResourcePlacementStage`, that runs after `FeatureCohesionStage` and writes `HexTile.Resource` (a new public field on `HexTile`). Resources are authored as `ResourceDefinition` ScriptableObjects exposing biome / feature / elevation filters, a rarity weight, a minimum-spacing constraint, an optional 3D `Prefab`, and a color. The stage is **opt-in**: with an empty `WorldGenerationSettings.Resources` roster or `ResourceDensity = 0`, the stage no-ops and every tile's `Resource` stays `null`. Buyers wanting plain world generation (no resources) get exactly that; buyers wanting Civ-style resource maps add resources to the roster.
+
+The renderer instantiates `tile.Resource.Prefab` (when assigned) as a child of the tile root, layered above the biome / feature visual. The flat-hex `MeshCollider` on the tile root continues to drive picking, so hover / click still resolves to the canonical coord regardless of resource prefab geometry.
+
+Eighteen worked-example resources ship under `Assets/HexWorldStudio/Content/Resources/`: Wheat, Cattle, Horses, Corn, Rice, Sheep, Deer, Bananas, Furs, Spices, Sugar, Incense, Iron, Gold, Silver, Gems, Fish, Whales. Each pre-populates AllowedBiomes / AllowedFeatures references to the seven shipped biomes + feature variants so dropping the whole roster into a Bootstrap or preset produces a runnable, Civ-flavored resource map.
+
+**Alternatives considered:**
+
+- *Make resource placement always on with a "None" sentinel resource.* Indirection that buyers would have to learn before they could "turn it off". The opt-in via empty-roster path is naturally discoverable: an unconfigured Bootstrap shows an empty Resources array, which is correctly interpreted as "no resources." Rejected.
+- *Resource as a field on `BiomeDefinition` / `TileFeatureDefinition` (each biome lists its own resources).* Tightly couples resource catalog to biome content — buyers can't add a new resource without editing every biome's array. The Resources roster on Settings keeps the catalog separate from biome content, which scales to dozens of resources without N×M editing churn. Rejected.
+- *Per-resource Perlin field (each resource has its own noise distribution).* More naturalistic clumping but multiplies the noise stages by N resources and complicates the spacing story (Perlin clusters + spacing rejection together produces hard-to-tune outputs). The flat per-tile probability × eligibility filter × spacing approach is what Civ uses and produces the expected sparse-scatter pattern. Rejected.
+- *Categorize resources (Bonus / Luxury / Strategic) as enum types with per-category density.* Standard Civ vocabulary; would map cleanly to per-category sliders. Rejected for v1 because per-resource Rarity already covers the same control surface (a "luxury" is just a low-Rarity resource); adding categories would force buyers to learn three placement dials when one suffices. Categories may land in a follow-up slice if buyers ask.
+- *Place multiple resources per tile.* Some Civ-likes (Civ 6 with mods) allow it. Out of scope for v1 — `HexTile.Resource` is a single reference. Buyers wanting multi-resource tiles can attach their own multi-list via composition in a later slice.
+
+**Reasoning:**
+Resources are the most-requested feature for any Asset Store world generator targeting 4X / strategy buyers (per CLAUDE.md's competitive analysis Slice 14). The opt-in design satisfies the user's explicit requirement: "we need to make resource creation optional — we can add resources to a map or let it have no resources." Empty roster = no resources, period; no buyer ever pays cycles or learns the resource system if they don't need it.
+
+Single new property on `HexTile` (`Resource`, mirrored on `Biome` / `Feature`) keeps the data layer's footprint constant and the conceptual model uniform — biome, feature, and resource are three layers of per-tile classification, each authored as its own ScriptableObject content type with its own pipeline stage. Buyers who already understand `BiomeDefinition` and `TileFeatureDefinition` understand `ResourceDefinition` instantly.
+
+Placement determinism uses one labeled RNG fork (`"resource-placement"`) so the stage composes cleanly with the rest of the pipeline — adding resources mid-development doesn't shift other stages' seeded streams, and existing seeded worlds with empty resource rosters remain byte-identical because the stage early-exits before touching the RNG fork.
+
+Spacing is per-resource (not global): two different resources can be adjacent (Wheat next to Cattle reads as a fertile farming region), but two same-type resources can't (no Wheat × Wheat × Wheat clusters). The default spacing of 2 produces visibly distributed resources without sparse-out-clumping; higher spacing for rarer resources (Gold spacing 4, Gems spacing 5) further enforces "rare = sparse."
+
+**Implementation note:**
+
+- `ResourceDefinition.MatchesEnvironment(biome, feature, elevation)` is public so buyer-facing tools (editor scripts, runtime UI) can preview eligibility without rerunning the pipeline.
+- The placement stage tracks per-resource placed coords in a `Dictionary<ResourceDefinition, List<HexCoord>>` and BFS-checks the spacing constraint via `HexCoord.Distance` with cylindrical wrap awareness (the wrapped-distance helper considers both Q-shift directions).
+- The weighted draw uses cumulative weights walked in eligible-resource order. Ties (multiple resources with identical Rarity) resolve to the first-encountered eligible resource, which is deterministic via the iteration order of the Resources roster.
+- The renderer's resource visual is a child of the tile root, layered on top of any biome / feature prefab. Buyer prefabs typically model decorative resources (animal mesh, crop pile, mineral cluster) sized to sit on the tile surface — the layered ordering means a Forest tile with Deer shows Forest geometry plus Deer geometry, not one or the other.
+- `WorldPreset` gains `Resources` + `ResourceDensity` fields. The four shipped presets (Earthlike, Pangaea, Archipelago, InlandSea) currently ship with empty resource rosters so existing buyer-seeded worlds are byte-identical post-Slice 15; buyers opt in by populating the array.
+- 18 starter resources cover the Civ-iconic catalog (food / luxury / strategic) and ship pre-wired to the shipped biome and feature SOs. Buyers duplicate-and-edit to author their own, or build from scratch via Create → Hex World Studio → Resource Definition.
+- Tests cover the opt-in contract (empty / null roster + zero density all no-op), biome filter enforcement, spacing enforcement (placed-pair distance ≥ MinimumSpacing across every pair), determinism, Rarity=0 disabling, and the null-context guard.

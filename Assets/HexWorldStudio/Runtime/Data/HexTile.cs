@@ -141,6 +141,22 @@ namespace HexWorldStudio.Data
         public TileFeatureDefinition Feature { get; internal set; }
 
         /// <summary>
+        /// The resource (if any) placed on this tile by
+        /// <c>ResourcePlacementStage</c>. References a
+        /// <see cref="ResourceDefinition"/> drawn from
+        /// <c>WorldGenerationSettings.Resources</c>. Per ADR-0022
+        /// resource placement is optional — if the buyer doesn't
+        /// populate the Resources roster the stage is a no-op and
+        /// this field stays <c>null</c> for every tile.
+        /// </summary>
+        /// <remarks>
+        /// Defaults to <c>null</c>. Resources are sparse by design
+        /// (Civ-style) so the vast majority of tiles carry no
+        /// resource even when the stage is active.
+        /// </remarks>
+        public ResourceDefinition Resource { get; internal set; }
+
+        /// <summary>
         /// Constructs a tile bound to a specific coordinate and index.
         /// Called by <c>WorldMap</c> during construction; not used by
         /// buyers directly.
