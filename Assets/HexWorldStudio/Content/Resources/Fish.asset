@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
   m_Name: Fish
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   ResourceName: Fish
   Color: {r: 0.42, g: 0.65, b: 0.85, a: 1}
-  Prefab: {fileID: 0}
+  Prefab: {fileID: 4769774415141658645, guid: 5cdb447ee904a82449db1dfecddd3aab, type: 3}
   AllowedBiomes:
   - {fileID: 11400000, guid: 396d27f0f05940988caf4c93a245e705, type: 2}
   AllowedFeatures: []
@@ -22,3 +22,5 @@ MonoBehaviour:
   MaxElevationLevel: 0
   Rarity: 1
   MinimumSpacing: 2
+  ReplaceTile: 0
+  ReplacementPrefabs: []

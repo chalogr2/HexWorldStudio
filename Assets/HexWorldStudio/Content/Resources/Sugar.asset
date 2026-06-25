@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
   m_Name: Sugar
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   ResourceName: Sugar
-  Color: {r: 0.97, g: 0.95, b: 0.90, a: 1}
-  Prefab: {fileID: 0}
+  Color: {r: 0.97, g: 0.95, b: 0.9, a: 1}
+  Prefab: {fileID: 7959270502683333276, guid: f559cf980c56c3f4ba3511892d7328a5, type: 3}
   AllowedBiomes:
   - {fileID: 11400000, guid: 213da2f8bbb94e1b94ff81d9cac3e604, type: 2}
   AllowedFeatures: []
@@ -22,3 +22,5 @@ MonoBehaviour:
   MaxElevationLevel: 2
   Rarity: 0.5
   MinimumSpacing: 3
+  ReplaceTile: 0
+  ReplacementPrefabs: []

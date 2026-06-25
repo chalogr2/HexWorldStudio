@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
   m_Name: Iron
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   ResourceName: Iron
-  Color: {r: 0.45, g: 0.50, b: 0.55, a: 1}
-  Prefab: {fileID: 0}
+  Color: {r: 0.45, g: 0.5, b: 0.55, a: 1}
+  Prefab: {fileID: 5824718408375762278, guid: a5b180185d617c44b9731bd76d5cbfb1, type: 3}
   AllowedBiomes: []
   AllowedFeatures:
   - {fileID: 11400000, guid: fbb6cce234164583825f61df1d3856e3, type: 2}
@@ -24,3 +24,5 @@ MonoBehaviour:
   MaxElevationLevel: 5
   Rarity: 0.5
   MinimumSpacing: 3
+  ReplaceTile: 0
+  ReplacementPrefabs: []

@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
   m_Name: Cattle
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   ResourceName: Cattle
   Color: {r: 0.55, g: 0.36, b: 0.22, a: 1}
-  Prefab: {fileID: 0}
+  Prefab: {fileID: 7970418240928603861, guid: 3e54ca99845f6554e824621e6ea80a47, type: 3}
   AllowedBiomes:
   - {fileID: 11400000, guid: a37cee65d7e0463a847c4deef6db70b0, type: 2}
   - {fileID: 11400000, guid: 95d63236f07647b3a896c9108a86bdfa, type: 2}
@@ -26,3 +26,5 @@ MonoBehaviour:
   MaxElevationLevel: 1
   Rarity: 1
   MinimumSpacing: 2
+  ReplaceTile: 0
+  ReplacementPrefabs: []

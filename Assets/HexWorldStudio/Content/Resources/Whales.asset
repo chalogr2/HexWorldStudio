@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
   m_Name: Whales
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   ResourceName: Whales
-  Color: {r: 0.20, g: 0.30, b: 0.55, a: 1}
-  Prefab: {fileID: 0}
+  Color: {r: 0.2, g: 0.3, b: 0.55, a: 1}
+  Prefab: {fileID: 7959270502683333276, guid: 9477245fab9df684eaa2deb03c0c1871, type: 3}
   AllowedBiomes:
   - {fileID: 11400000, guid: 1e90b9698ab94b57a7117a56dac6752e, type: 2}
   AllowedFeatures: []
@@ -22,3 +22,5 @@ MonoBehaviour:
   MaxElevationLevel: 0
   Rarity: 0.5
   MinimumSpacing: 4
+  ReplaceTile: 0
+  ReplacementPrefabs: []

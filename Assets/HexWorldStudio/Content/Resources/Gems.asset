@@ -11,10 +11,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f3d5b7a9c1e24d4ea0c2d4e6f8a0b2c4, type: 3}
   m_Name: Gems
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   ResourceName: Gems
-  Color: {r: 0.75, g: 0.30, b: 0.85, a: 1}
-  Prefab: {fileID: 0}
+  Color: {r: 0.75, g: 0.3, b: 0.85, a: 1}
+  Prefab: {fileID: 7959270502683333276, guid: fac0cb44ca19ff84bba5ea464a5e21d7, type: 3}
   AllowedBiomes: []
   AllowedFeatures:
   - {fileID: 11400000, guid: fbb6cce234164583825f61df1d3856e3, type: 2}
@@ -23,3 +23,5 @@ MonoBehaviour:
   MaxElevationLevel: 5
   Rarity: 0.25
   MinimumSpacing: 5
+  ReplaceTile: 0
+  ReplacementPrefabs: []
