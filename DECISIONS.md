@@ -665,3 +665,45 @@ Spacing is per-resource (not global): two different resources can be adjacent (W
 - `WorldPreset` gains `Resources` + `ResourceDensity` fields. The four shipped presets (Earthlike, Pangaea, Archipelago, InlandSea) currently ship with empty resource rosters so existing buyer-seeded worlds are byte-identical post-Slice 15; buyers opt in by populating the array.
 - 18 starter resources cover the Civ-iconic catalog (food / luxury / strategic) and ship pre-wired to the shipped biome and feature SOs. Buyers duplicate-and-edit to author their own, or build from scratch via Create → Hex World Studio → Resource Definition.
 - Tests cover the opt-in contract (empty / null roster + zero density all no-op), biome filter enforcement, spacing enforcement (placed-pair distance ≥ MinimumSpacing across every pair), determinism, Rarity=0 disabling, and the null-context guard.
+
+---
+
+## ADR-0023 — Resource render modes: surface-placed (default) vs replace-tile (per-resource opt-in)
+
+**Date:** 2026-06-25
+**Status:** Accepted
+
+**Decision:**
+`ResourceDefinition` gains a `ReplaceTile` boolean and a parallel `ReplacementPrefabs : ResourceReplacementEntry[]` array. Each entry is a `(Biome, Feature, Prefab)` tuple that maps a specific `(biome, feature)` combination the resource can land on to a prefab that **replaces** the tile's biome / feature visual entirely.
+
+The renderer dispatches at tile-build time:
+- **Default mode** (`ReplaceTile = false`): the resource's regular `Prefab` is instantiated as a child of the tile root, positioned at the local Y of the visible top of the underlying biome / feature visual (per-source-prefab cached). The resource sits **on** the surface; the underlying tile geometry remains intact.
+- **Replace-tile mode** (`ReplaceTile = true`): the renderer looks up `(tile.Biome, tile.Feature)` in `ReplacementPrefabs`. If a matching entry has a non-null prefab, that prefab is instantiated as the tile's sole visual; the regular biome / feature prefab is skipped. If no matching entry has a prefab (or `ReplaceTile` is off), the renderer falls back to default mode for that tile.
+
+The `Editor/Inspectors/ResourceDefinitionEditor.cs` custom inspector auto-syncs `ReplacementPrefabs` to the cross-product of `AllowedBiomes × AllowedFeatures` whenever `ReplaceTile` is on: one prefab slot per combo the resource can land on. Existing slot assignments are preserved across resyncs by `(Biome, Feature)` key match. Wildcard axes collapse to a single null-keyed entry on that axis.
+
+**Alternatives considered:**
+
+- *Single replacement prefab per resource (one prefab regardless of biome / feature).* Loses the per-combo control buyers want — e.g., a Wheat resource that needs different wheat-field geometry for a temperate plain vs a tropical plain. Rejected.
+- *Replace-tile mode that uses the resource's regular `Prefab` field instead of a separate per-combo list.* Same control loss. The two render paths must address different needs: add-on-top is fine with one prefab (it sits over whatever's underneath), but replace-tile must match the underlying combo's expected look. Rejected.
+- *Dictionary&lt;(Biome, Feature), GameObject&gt; instead of a serializable list.* C# dictionaries don't serialize cleanly in Unity. A `[Serializable]` struct array with linear lookup is the conventional Unity solution and the list is short (≤ a couple dozen entries per resource). Rejected.
+- *Compute surface Y from prefab metadata rather than renderer bounds.* Would require buyers to author a metadata field on every biome / feature prefab. Bounds computation runs once per source prefab (cached) and works without any buyer authoring, including for buyer-supplied prefabs. Rejected.
+- *Surface offset as a per-resource field rather than a renderer-computed value.* Forces each resource to know the height of every biome / feature underneath it (N×M tuning). The bounds-based per-prefab cache produces the right value automatically regardless of which biome / feature the resource lands on. Rejected.
+- *Compute surface Y per tile (no cache).* Allocates a `Renderer[]` array and walks bounds for every resource-bearing tile — wasteful when many tiles share the same source prefab. The per-source-prefab cache eliminates the redundant computation. Rejected.
+
+**Reasoning:**
+Two distinct buyer authoring goals. Some resources are decorative add-ons (Cattle on a grassland tile, Fish on a water tile) — the underlying tile geometry stays useful, the resource is a small overlay. Other resources are tile-defining (a Wheat-field resource on a plains tile may want to *be* the visible plain rather than sit on it). Both patterns appear in published 4X games. Forcing a single render mode on every resource limits what buyers can author. The opt-in toggle keeps the default behavior simple while the replace mode unlocks the second pattern.
+
+The per-(biome, feature) prefab list is necessary for replace-tile mode because the replacement prefab IS the tile's whole visible geometry. A single Wheat replacement prefab can't simultaneously look right on a temperate plain (yellow wheat over green grass) and a tropical plain (yellow wheat over jungle floor) — buyers need one prefab per combo. The auto-sync from `AllowedBiomes × AllowedFeatures` removes the bookkeeping burden: when buyer adds a biome to AllowedBiomes, a new prefab slot appears in the inspector automatically; remove a biome, the slot disappears. No manual array bookkeeping.
+
+Surface Y computation via renderer bounds is the most "correct" fix to the previous clipping problem: it reads the actual visible top of whatever prefab is underneath, regardless of authoring height conventions. The per-source-prefab cache makes the cost amortized-O(1) — first tile of each unique source prefab computes the bounds once, every subsequent tile of the same source reuses the cached value. With ~10-20 distinct biome / feature prefabs in a typical world, the cache pays for itself in the first few tiles.
+
+**Implementation note:**
+
+- `ResourceReplacementEntry` is `[Serializable]` and lives next to `ResourceDefinition` in the same file. `Biome` and `Feature` references may both be null when wildcard.
+- `GetReplacementPrefab(biome, feature)` returns null when `ReplaceTile` is off (regardless of array contents) so the renderer doesn't need to check both the flag and the lookup result.
+- Renderer's surface-Y cache is keyed on the *source prefab* reference (not the instance). Two tiles instantiated from the same source prefab share one cached value. Cleared in `WorldRenderer.Clear()` so hot-edited prefabs re-measure on the next `Render()`.
+- The bounds computation walks `Renderer[]` via `GetComponentsInChildren(includeInactive: true)` and combines `renderer.bounds.max.y - tileRoot.position.y` to convert world-space top into a tile-root-local offset. Negative results clamp to 0 (defensive — never positions a resource below the tile root).
+- The custom inspector resyncs `ReplacementPrefabs` only when entries actually change (quick-path comparison of count + per-index keys); avoids dirty-marking the asset on every IMGUI repaint.
+- Replace-tile mode that finds no matching entry (or finds one with a null prefab) silently falls through to the default add-on-top behavior. Choice over throwing: lets buyers iterate without breaking the demo while they fill in prefab slots one at a time.
+- Tests cover `ReplaceTile = false` always returns null, exact key match, no match returns null, and wildcard axes match null keys.

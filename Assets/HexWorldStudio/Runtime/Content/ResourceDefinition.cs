@@ -1,7 +1,36 @@
+using System;
 using UnityEngine;
 
 namespace HexWorldStudio.Content
 {
+    /// <summary>
+    /// One entry in <see cref="ResourceDefinition.ReplacementPrefabs"/>:
+    /// the prefab to spawn when a resource of this definition lands on
+    /// a tile carrying the given <see cref="Biome"/> + <see cref="Feature"/>
+    /// combination. Either reference may be <c>null</c> when the
+    /// matching axis is wildcard (empty <c>AllowedBiomes</c> or
+    /// <c>AllowedFeatures</c>) — the inspector auto-populates entries
+    /// from <c>AllowedBiomes</c> × <c>AllowedFeatures</c> per ADR-0023.
+    /// </summary>
+    [Serializable]
+    public struct ResourceReplacementEntry
+    {
+        /// <summary>The biome key for this replacement combo. <c>null</c> = wildcard.</summary>
+        public BiomeDefinition Biome;
+
+        /// <summary>The feature key for this replacement combo. <c>null</c> = wildcard.</summary>
+        public TileFeatureDefinition Feature;
+
+        /// <summary>
+        /// Prefab that replaces the tile visual when a resource of
+        /// this definition lands on a tile matching this entry's
+        /// (Biome, Feature) key. <c>null</c> means "no replacement
+        /// authored for this combo" — the renderer falls back to the
+        /// default add-on-top behavior for tiles with this combo.
+        /// </summary>
+        public GameObject Prefab;
+    }
+
     /// <summary>
     /// A single placeable resource — wheat, iron, gold, fish, etc. —
     /// authored as a ScriptableObject so buyers add, remove, or
@@ -109,6 +138,58 @@ namespace HexWorldStudio.Content
         /// preventing visual clumping. <c>0</c> disables the check.
         /// </summary>
         public int MinimumSpacing = 2;
+
+        /// <summary>
+        /// When <c>true</c>, the renderer replaces the tile's biome /
+        /// feature visual with a per-(biome, feature) prefab from
+        /// <see cref="ReplacementPrefabs"/> instead of adding a
+        /// resource prefab on top of it. Default <c>false</c> — the
+        /// resource <see cref="Prefab"/> is spawned as a layered child
+        /// on the tile's normal biome / feature visual.
+        /// </summary>
+        /// <remarks>
+        /// See ADR-0023. The inspector auto-syncs
+        /// <see cref="ReplacementPrefabs"/> entries to the cross-product
+        /// of <see cref="AllowedBiomes"/> × <see cref="AllowedFeatures"/>
+        /// when this flag is on, so the buyer sees one prefab slot per
+        /// combo the resource can land on. When the runtime resource
+        /// placement chooses this resource for a tile, the renderer
+        /// looks up the entry whose (Biome, Feature) matches the tile
+        /// and instantiates that entry's prefab as the tile's sole
+        /// visual; if no matching entry has a non-null prefab, the
+        /// renderer falls back to the default add-on-top behavior.
+        /// </remarks>
+        public bool ReplaceTile;
+
+        /// <summary>
+        /// One prefab per (Biome, Feature) combination the resource
+        /// can land on. Populated automatically by the inspector when
+        /// <see cref="ReplaceTile"/> is on — buyers fill the prefab
+        /// slots; the entries themselves are kept in sync with
+        /// <see cref="AllowedBiomes"/> × <see cref="AllowedFeatures"/>.
+        /// Each entry's prefab fully replaces the tile visual for the
+        /// matching combo (no biome / feature prefab is instantiated
+        /// alongside it).
+        /// </summary>
+        public ResourceReplacementEntry[] ReplacementPrefabs;
+
+        /// <summary>
+        /// Returns the replacement prefab the renderer should use for
+        /// a tile carrying the given (biome, feature) combination, or
+        /// <c>null</c> when no entry matches (renderer should fall
+        /// back to the default add-on-top path).
+        /// </summary>
+        public GameObject GetReplacementPrefab(BiomeDefinition biome, TileFeatureDefinition feature)
+        {
+            if (!ReplaceTile) return null;
+            if (ReplacementPrefabs == null) return null;
+            for (int i = 0; i < ReplacementPrefabs.Length; i++)
+            {
+                ResourceReplacementEntry e = ReplacementPrefabs[i];
+                if (e.Biome == biome && e.Feature == feature) return e.Prefab;
+            }
+            return null;
+        }
 
         /// <summary>
         /// Returns <c>true</c> when this resource's filters are

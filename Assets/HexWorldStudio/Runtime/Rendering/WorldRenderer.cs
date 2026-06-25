@@ -119,6 +119,14 @@ namespace HexWorldStudio.Rendering
         // a base ctor. Created lazily on first use.
         private MaterialPropertyBlock _propertyBlock;
 
+        // Surface-Y cache keyed by source prefab reference. Computed
+        // once per unique biome / feature prefab via the renderer-
+        // bounds of the first instance, then reused for every other
+        // tile that shares the same source prefab. Lets resource
+        // visuals sit on the visible top of the underlying tile mesh
+        // instead of clipping through it (ADR-0023). Cleared in Clear().
+        private readonly Dictionary<GameObject, float> _surfaceYCache = new Dictionary<GameObject, float>();
+
         /// <summary>
         /// Number of tile GameObjects currently parented to this
         /// renderer. Equals <c>map.Tiles.Count</c> after a successful
@@ -171,6 +179,10 @@ namespace HexWorldStudio.Rendering
 
             _materialCache?.Dispose();
             _materialCache = null;
+
+            // Drop the surface-Y cache so a hot-edited prefab
+            // re-measures its visible top on the next Render().
+            _surfaceYCache.Clear();
         }
 
         private void OnDestroy()
@@ -211,13 +223,40 @@ namespace HexWorldStudio.Rendering
             var collider = go.AddComponent<MeshCollider>();
             collider.sharedMesh = _sharedMesh;
 
-            // Visual path: feature.Prefab → biome.Prefab → procedural HexMesh.
-            GameObject visualPrefab = ResolveVisualPrefab(tile);
-            if (visualPrefab != null)
+            // Decide the main tile visual. When the assigned resource
+            // is in replace-tile mode (ADR-0023) AND a matching
+            // (biome, feature) replacement prefab is authored, that
+            // prefab BECOMES the tile visual — no biome / feature
+            // prefab is instantiated alongside it. Otherwise the
+            // regular feature.Prefab → biome.Prefab → procedural
+            // HexMesh chain runs (ADR-0017).
+            GameObject mainPrefab = null;
+            bool replacedByResource = false;
+
+            if (tile.Resource != null && tile.Resource.ReplaceTile)
             {
-                var visual = Object.Instantiate(visualPrefab, go.transform);
-                visual.transform.localPosition = Vector3.zero;
-                visual.transform.localRotation = Quaternion.identity;
+                GameObject replacement = tile.Resource.GetReplacementPrefab(tile.Biome, tile.Feature);
+                if (replacement != null)
+                {
+                    mainPrefab = replacement;
+                    replacedByResource = true;
+                }
+                // No matching replacement → fall through to regular
+                // biome / feature path and let the resource render
+                // as the add-on-top default below.
+            }
+
+            if (mainPrefab == null)
+            {
+                mainPrefab = ResolveVisualPrefab(tile);
+            }
+
+            GameObject mainInstance = null;
+            if (mainPrefab != null)
+            {
+                mainInstance = Object.Instantiate(mainPrefab, go.transform);
+                mainInstance.transform.localPosition = Vector3.zero;
+                mainInstance.transform.localRotation = Quaternion.identity;
                 // Intentionally do not overwrite localScale here — the
                 // prefab brings its own authored scale and the tile
                 // root's _tileWorldScale already propagates uniformly
@@ -225,7 +264,7 @@ namespace HexWorldStudio.Rendering
             }
             else
             {
-                // Procedural fallback (unchanged when both prefabs null).
+                // Procedural fallback (unchanged when no prefab path matches).
                 var filter = go.AddComponent<MeshFilter>();
                 filter.sharedMesh = _sharedMesh;
 
@@ -239,18 +278,55 @@ namespace HexWorldStudio.Rendering
             }
 
             // Optional resource visual layered on top of biome / feature
-            // visuals (ADR-0022). Resource placement is opt-in — when no
-            // resource is assigned to the tile or its prefab is null,
-            // this is a no-op. The flat-hex MeshCollider on the tile
-            // root still drives picking regardless of resource geometry.
-            if (tile.Resource != null && tile.Resource.Prefab != null)
+            // visuals (ADR-0022). Skipped entirely when the resource
+            // already replaced the tile (ADR-0023); the replacement
+            // prefab IS the resource visual in that case.
+            //
+            // Placed at the visible top of the main visual (cached per
+            // source prefab via GetSurfaceY) so the resource model
+            // sits on the surface instead of clipping into the tile.
+            if (!replacedByResource
+                && tile.Resource != null
+                && tile.Resource.Prefab != null)
             {
                 var resourceVisual = Object.Instantiate(tile.Resource.Prefab, go.transform);
-                resourceVisual.transform.localPosition = Vector3.zero;
+                float surfaceY = (mainInstance != null && mainPrefab != null)
+                    ? GetSurfaceY(mainPrefab, mainInstance, go.transform)
+                    : 0f;
+                resourceVisual.transform.localPosition = new Vector3(0f, surfaceY, 0f);
                 resourceVisual.transform.localRotation = Quaternion.identity;
             }
 
             return go;
+        }
+
+        // Returns the tile-root-local Y of the visible top of the
+        // given main visual. Computed once per source prefab via the
+        // first instance's combined Renderer bounds and cached for
+        // every subsequent tile that shares the same source. Falls
+        // back to 0 when the prefab has no renderers (flat / empty).
+        //
+        // Cache validity assumes prefab geometry doesn't change at
+        // runtime, which is the standard Asset Store contract for
+        // prefab content. Cleared in Clear() so a hot-edited prefab
+        // re-measures on the next Render() call.
+        private float GetSurfaceY(GameObject sourcePrefab, GameObject instance, Transform tileRoot)
+        {
+            if (_surfaceYCache.TryGetValue(sourcePrefab, out float cached)) return cached;
+
+            Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(includeInactive: true);
+            float localTop = 0f;
+            if (renderers != null && renderers.Length > 0)
+            {
+                Bounds combined = renderers[0].bounds;
+                for (int i = 1; i < renderers.Length; i++) combined.Encapsulate(renderers[i].bounds);
+                // Convert world-space top Y to a tile-root-local offset.
+                localTop = combined.max.y - tileRoot.position.y;
+                if (localTop < 0f) localTop = 0f; // defensive: never below the tile root
+            }
+
+            _surfaceYCache[sourcePrefab] = localTop;
+            return localTop;
         }
 
         /// <summary>
