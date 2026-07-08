@@ -169,44 +169,56 @@ namespace HexWorldStudio.Rendering
 
                 Vector3 mid  = (aCenter + bCenter) * 0.5f;
                 Vector3 diff = bCenter - aCenter;
-                Vector3 flowDir  = new Vector3(-diff.z, 0f, diff.x).normalized;
+                Vector3 flowDir   = new Vector3(-diff.z, 0f, diff.x).normalized;
                 Vector3 acrossDir = diff.normalized;
 
-                // The two endpoints of the shared hex edge — used
-                // as the strip's flow-axis extents so junctions
-                // meet at a shared hex-vertex position across
-                // incident edges.
-                Vector3 vStart = mid + flowDir * (HexMesh.OuterRadius * 0.5f);
-                Vector3 vEnd   = mid - flowDir * (HexMesh.OuterRadius * 0.5f);
+                // Rhombus / leaf shape: pointy ends AT the two
+                // shared hex corners of the edge, widest at the
+                // edge midpoint. Adjacent river edges share a hex
+                // corner, so their pointy ends coincide exactly —
+                // producing a geometrically continuous strip with
+                // no visible gaps at junctions (which the earlier
+                // flat-ended-rectangle shape had, because adjacent
+                // quads' width axes were perpendicular to different
+                // flow axes and thus didn't align at the shared
+                // vertex).
+                Vector3 pStart = mid + flowDir * (HexMesh.OuterRadius * 0.5f);
+                Vector3 pEnd   = mid - flowDir * (HexMesh.OuterRadius * 0.5f);
+                Vector3 sideB  = mid + acrossDir * halfWidth;
+                Vector3 sideA  = mid - acrossDir * halfWidth;
 
-                Vector3 halfCross = acrossDir * halfWidth;
-
-                Vector3 q0 = new Vector3(vStart.x + halfCross.x, y, vStart.z + halfCross.z);
-                Vector3 q1 = new Vector3(vStart.x - halfCross.x, y, vStart.z - halfCross.z);
-                Vector3 q2 = new Vector3(vEnd.x   + halfCross.x, y, vEnd.z   + halfCross.z);
-                Vector3 q3 = new Vector3(vEnd.x   - halfCross.x, y, vEnd.z   - halfCross.z);
+                Vector3 v0 = new Vector3(pStart.x, y, pStart.z);
+                Vector3 v1 = new Vector3(sideB.x,  y, sideB.z);
+                Vector3 v2 = new Vector3(pEnd.x,   y, pEnd.z);
+                Vector3 v3 = new Vector3(sideA.x,  y, sideA.z);
 
                 int v = i * 4;
-                vertices[v + 0] = q0;
-                vertices[v + 1] = q1;
-                vertices[v + 2] = q2;
-                vertices[v + 3] = q3;
+                vertices[v + 0] = v0;
+                vertices[v + 1] = v1;
+                vertices[v + 2] = v2;
+                vertices[v + 3] = v3;
 
-                uvs[v + 0] = new Vector2(1f, 0f);
-                uvs[v + 1] = new Vector2(0f, 0f);
-                uvs[v + 2] = new Vector2(1f, 1f);
-                uvs[v + 3] = new Vector2(0f, 1f);
+                // UVs: V along flow (v0 = 0, v2 = 1), U across
+                // (v3 = 0, v1 = 1). Pointy ends sit at U = 0.5 —
+                // the water texture is slightly pinched there,
+                // which reads as natural turbulence at junctions.
+                uvs[v + 0] = new Vector2(0.5f, 0f);
+                uvs[v + 1] = new Vector2(1f,   0.5f);
+                uvs[v + 2] = new Vector2(0.5f, 1f);
+                uvs[v + 3] = new Vector2(0f,   0.5f);
 
                 normals[v + 0] = Vector3.up;
                 normals[v + 1] = Vector3.up;
                 normals[v + 2] = Vector3.up;
                 normals[v + 3] = Vector3.up;
 
+                // Two triangles forming the rhombus. Shader has
+                // Cull Off so winding order is not critical.
                 int t = i * 6;
                 triangles[t + 0] = v + 0;
-                triangles[t + 1] = v + 2;
-                triangles[t + 2] = v + 1;
-                triangles[t + 3] = v + 1;
+                triangles[t + 1] = v + 1;
+                triangles[t + 2] = v + 2;
+                triangles[t + 3] = v + 0;
                 triangles[t + 4] = v + 2;
                 triangles[t + 5] = v + 3;
             }
