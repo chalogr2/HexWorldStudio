@@ -169,28 +169,33 @@ namespace HexWorldStudio.Rendering
 
                 Vector3 mid  = (aCenter + bCenter) * 0.5f;
                 Vector3 diff = bCenter - aCenter;
-                Vector3 flowDir   = new Vector3(-diff.z, 0f, diff.x).normalized;
-                Vector3 acrossDir = diff.normalized;
+                Vector3 edgeDir = new Vector3(-diff.z, 0f, diff.x).normalized;
 
-                // Rhombus / leaf shape: pointy ends AT the two
-                // shared hex corners of the edge, widest at the
-                // edge midpoint. Adjacent river edges share a hex
-                // corner, so their pointy ends coincide exactly —
-                // producing a geometrically continuous strip with
-                // no visible gaps at junctions (which the earlier
-                // flat-ended-rectangle shape had, because adjacent
-                // quads' width axes were perpendicular to different
-                // flow axes and thus didn't align at the shared
-                // vertex).
-                Vector3 pStart = mid + flowDir * (HexMesh.OuterRadius * 0.5f);
-                Vector3 pEnd   = mid - flowDir * (HexMesh.OuterRadius * 0.5f);
-                Vector3 sideB  = mid + acrossDir * halfWidth;
-                Vector3 sideA  = mid - acrossDir * halfWidth;
+                // Tile-center-to-tile-center kite: pointy ends at
+                // the two neighboring TILE CENTERS, widest at the
+                // shared-edge midpoint. Chained river edges share
+                // tile centers (a chain L → M → R has the LM edge
+                // ending at M's center and the MR edge starting at
+                // M's center), so consecutive kites meet exactly at
+                // the shared tile center — geometrically continuous.
+                //
+                // (Anchoring at hex corners, our previous attempt,
+                // only helped Y-junctions where 3 edges meet at one
+                // corner; ordinary chain rivers share tiles, not
+                // corners, so the tips landed on entirely different
+                // hex corners on opposite sides of the middle tile
+                // and left visible gaps.)
+                //
+                // The kite lives entirely between the two neighboring
+                // land tiles' centers, so it never extends across a
+                // land-water boundary either.
+                Vector3 wingB = mid + edgeDir * halfWidth;
+                Vector3 wingA = mid - edgeDir * halfWidth;
 
-                Vector3 v0 = new Vector3(pStart.x, y, pStart.z);
-                Vector3 v1 = new Vector3(sideB.x,  y, sideB.z);
-                Vector3 v2 = new Vector3(pEnd.x,   y, pEnd.z);
-                Vector3 v3 = new Vector3(sideA.x,  y, sideA.z);
+                Vector3 v0 = new Vector3(aCenter.x, y, aCenter.z);
+                Vector3 v1 = new Vector3(wingB.x,   y, wingB.z);
+                Vector3 v2 = new Vector3(bCenter.x, y, bCenter.z);
+                Vector3 v3 = new Vector3(wingA.x,   y, wingA.z);
 
                 int v = i * 4;
                 vertices[v + 0] = v0;
@@ -198,10 +203,12 @@ namespace HexWorldStudio.Rendering
                 vertices[v + 2] = v2;
                 vertices[v + 3] = v3;
 
-                // UVs: V along flow (v0 = 0, v2 = 1), U across
-                // (v3 = 0, v1 = 1). Pointy ends sit at U = 0.5 —
-                // the water texture is slightly pinched there,
-                // which reads as natural turbulence at junctions.
+                // UVs: V goes from A_center (0) through the shared-
+                // edge midpoint (0.5) to B_center (1). U spans the
+                // two banks at the midpoint. The kite tapers at the
+                // tile centers to zero U-width, so the water texture
+                // pinches there — reads as flow speeding up through
+                // the tile interior, which is fine visually.
                 uvs[v + 0] = new Vector2(0.5f, 0f);
                 uvs[v + 1] = new Vector2(1f,   0.5f);
                 uvs[v + 2] = new Vector2(0.5f, 1f);
@@ -212,7 +219,7 @@ namespace HexWorldStudio.Rendering
                 normals[v + 2] = Vector3.up;
                 normals[v + 3] = Vector3.up;
 
-                // Two triangles forming the rhombus. Shader has
+                // Two triangles forming the kite. Shader has
                 // Cull Off so winding order is not critical.
                 int t = i * 6;
                 triangles[t + 0] = v + 0;
