@@ -75,6 +75,33 @@ namespace HexWorldStudio.Generation
         /// </summary>
         public const float DefaultResourceDensity = 0.2f;
 
+        /// <summary>
+        /// Default per-tile probability of a source-eligible land
+        /// tile becoming a river source. Multiplied by tile moisture,
+        /// so the effective source rate is
+        /// <c>RiverDensity × avgMoisture</c>. Zero disables the
+        /// river stage entirely. See <see cref="RiverDensity"/> and
+        /// ADR-0024.
+        /// </summary>
+        public const float DefaultRiverDensity = 0.15f;
+
+        /// <summary>
+        /// Minimum <c>ElevationLevel</c> a land tile must have to be
+        /// eligible as a river source. Default <c>4</c> (of 6 in the
+        /// default quantization) reserves rivers for the upper
+        /// highlands and mountains, matching the "rivers come from
+        /// high country" hydrology intuition.
+        /// </summary>
+        public const int DefaultRiverSourceMinElevation = 4;
+
+        /// <summary>
+        /// Safety cap on individual river length in steps. Rivers
+        /// that hit water or merge before this cap terminate normally;
+        /// anything reaching the cap is truncated. Prevents pathological
+        /// runaway walks on unusual elevation topologies.
+        /// </summary>
+        public const int DefaultMaxRiverLength = 40;
+
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
 
@@ -178,6 +205,32 @@ namespace HexWorldStudio.Generation
         /// resource density.
         /// </summary>
         public float ResourceDensity { get; }
+
+        /// <summary>
+        /// Per-tile probability of a source-eligible land tile
+        /// becoming a river source in <c>[0, 1]</c>. <c>0</c>
+        /// disables the river stage entirely (opt-out). Multiplied
+        /// by tile moisture, so the effective rate is
+        /// <c>RiverDensity × moisture</c>; dry tiles are less
+        /// likely to spawn rivers than wet ones. See ADR-0024.
+        /// </summary>
+        public float RiverDensity { get; }
+
+        /// <summary>
+        /// Minimum <c>ElevationLevel</c> a tile must have to be
+        /// eligible as a river source. Filters low-elevation land
+        /// out of the source pool so rivers only start from
+        /// highlands and mountains.
+        /// </summary>
+        public int RiverSourceMinElevation { get; }
+
+        /// <summary>
+        /// Safety cap on the number of downhill steps a single
+        /// river can take. Rivers that reach water or merge with an
+        /// existing river before the cap terminate normally; any
+        /// walk that exceeds the cap is truncated.
+        /// </summary>
+        public int MaxRiverLength { get; }
 
         /// <summary>
         /// Constructs a settings instance with the default
@@ -302,10 +355,10 @@ namespace HexWorldStudio.Generation
         }
 
         /// <summary>
-        /// Full constructor including the optional resource roster.
-        /// Resource placement is opt-in per ADR-0022: when
-        /// <paramref name="resources"/> is null or empty, the
-        /// <c>ResourcePlacementStage</c> is a no-op.
+        /// Constructor including the optional resource roster; river
+        /// settings use their defaults. Resource placement is opt-in
+        /// per ADR-0022: when <paramref name="resources"/> is null or
+        /// empty, the <c>ResourcePlacementStage</c> is a no-op.
         /// </summary>
         /// <param name="width">Number of columns. Must be positive.</param>
         /// <param name="height">Number of rows. Must be positive.</param>
@@ -329,6 +382,51 @@ namespace HexWorldStudio.Generation
                                        ContinentShapeAlgorithm continentShapeAlgorithm,
                                        IReadOnlyList<ResourceDefinition> resources,
                                        float resourceDensity)
+            : this(width, height, seed, landRatio, biomes,
+                   biomeCohesion, featureCohesion, continentShapeAlgorithm,
+                   resources, resourceDensity,
+                   DefaultRiverDensity, DefaultRiverSourceMinElevation, DefaultMaxRiverLength)
+        {
+        }
+
+        /// <summary>
+        /// Full constructor including river settings. Rivers are
+        /// opt-out per ADR-0024: when
+        /// <paramref name="riverDensity"/> is <c>0</c>, the
+        /// <c>RiverStage</c> is a no-op and
+        /// <see cref="WorldMap.RiverEdges"/> stays empty.
+        /// </summary>
+        /// <param name="width">Number of columns. Must be positive.</param>
+        /// <param name="height">Number of rows. Must be positive.</param>
+        /// <param name="seed">The 64-bit RNG seed.</param>
+        /// <param name="landRatio">Target land proportion in <c>(0, 1)</c>.</param>
+        /// <param name="biomes">Biome content set; structural requirements per the shorter ctor.</param>
+        /// <param name="biomeCohesion">Biome smoothing strength in <c>[0, 1]</c>.</param>
+        /// <param name="featureCohesion">Feature smoothing strength in <c>[0, 1]</c>.</param>
+        /// <param name="continentShapeAlgorithm">Continent-shape algorithm choice.</param>
+        /// <param name="resources">Resource content set.</param>
+        /// <param name="resourceDensity">Per-tile resource placement probability.</param>
+        /// <param name="riverDensity">
+        /// Per-source-eligible-tile probability of becoming a river
+        /// source in <c>[0, 1]</c>. <c>0</c> disables rivers.
+        /// </param>
+        /// <param name="riverSourceMinElevation">
+        /// Minimum <c>ElevationLevel</c> for a tile to be a river
+        /// source candidate.
+        /// </param>
+        /// <param name="maxRiverLength">
+        /// Safety cap on the number of downhill steps a single river
+        /// can take.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
+                                       IReadOnlyList<BiomeDefinition> biomes,
+                                       float biomeCohesion, float featureCohesion,
+                                       ContinentShapeAlgorithm continentShapeAlgorithm,
+                                       IReadOnlyList<ResourceDefinition> resources,
+                                       float resourceDensity,
+                                       float riverDensity,
+                                       int riverSourceMinElevation,
+                                       int maxRiverLength)
         {
             Width = width;
             Height = height;
@@ -340,6 +438,9 @@ namespace HexWorldStudio.Generation
             ContinentShapeAlgorithm = continentShapeAlgorithm;
             Resources = resources;
             ResourceDensity = resourceDensity;
+            RiverDensity = riverDensity;
+            RiverSourceMinElevation = riverSourceMinElevation;
+            MaxRiverLength = maxRiverLength;
         }
     }
 }

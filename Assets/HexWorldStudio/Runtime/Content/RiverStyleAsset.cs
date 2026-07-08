@@ -1,0 +1,75 @@
+using UnityEngine;
+
+namespace HexWorldStudio.Content
+{
+    /// <summary>
+    /// Buyer-facing visual configuration for the default river
+    /// renderer per ADR-0024. Bundles a material, geometric knobs
+    /// (width, surface Y offset), and a stable channel color into a
+    /// single ScriptableObject buyers assign on the
+    /// <c>RiverRenderer</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The material carries the whole visual style: assign a static
+    /// URP/Lit material for a still-water look, or the shipped
+    /// <c>FlowingWater</c> shader for animated scrolling flow, or
+    /// any custom shader graph with its own tiling water texture,
+    /// normal map, foam, refraction, etc. The renderer emits UVs
+    /// where <b>U</b> runs across the river (0 = one bank, 1 =
+    /// other bank) and <b>V</b> runs along the flow — flow
+    /// animation is a single UV-offset node in Shader Graph or a
+    /// <c>_Time.y * _FlowSpeed</c> add in HLSL.
+    /// </para>
+    /// <para>
+    /// <see cref="WidthRelativeToHex"/> scales the strip's
+    /// cross-section width relative to a hex's flat-to-flat width;
+    /// <c>0.15</c> is the shipped default (Civ-like readable
+    /// ribbon). <see cref="SurfaceYOffset"/> lifts the strip above
+    /// the tile top a tiny amount to prevent z-fighting with the
+    /// underlying terrain mesh.
+    /// </para>
+    /// </remarks>
+    [CreateAssetMenu(fileName = "RiverStyle", menuName = "Hex World Studio/River Style")]
+    public sealed class RiverStyleAsset : ScriptableObject
+    {
+        /// <summary>
+        /// The material used to render every river segment. Assign a
+        /// static URP/Lit material for a still look or the shipped
+        /// <c>FlowingWater</c> shader for scrolling flow. The
+        /// renderer emits UVs with <b>U</b> across the river and
+        /// <b>V</b> along the flow, so any material whose shader
+        /// scrolls V produces animated water.
+        /// </summary>
+        [Tooltip("Material used for every river segment. Use the shipped FlowingWater shader for scrolling flow, or any URP-compatible material — the renderer supplies U-across-V-along-flow UVs so shader-graph water works transparently.")]
+        public Material Material;
+
+        /// <summary>
+        /// Width of the river strip as a fraction of the hex's
+        /// flat-to-flat width. <c>0.15</c> reads as a Civ-style
+        /// medium ribbon; <c>0.05</c> is a stream; <c>0.4</c> is a
+        /// wide navigable river.
+        /// </summary>
+        [Range(0.02f, 0.6f)]
+        [Tooltip("River strip width as a fraction of hex flat-to-flat width. Default 0.15 = Civ-style medium ribbon.")]
+        public float WidthRelativeToHex = 0.15f;
+
+        /// <summary>
+        /// Small positive Y offset added to the strip so it sits
+        /// above the underlying tile mesh without z-fighting.
+        /// </summary>
+        [Range(-0.05f, 0.1f)]
+        [Tooltip("Y offset from the tile surface. Small positive value prevents z-fighting with terrain; negative cuts a slight channel into the land.")]
+        public float SurfaceYOffset = 0.005f;
+
+        /// <summary>
+        /// Base tint applied via the material's <c>_BaseColor</c>
+        /// property when the shader supports it. Falls back to a
+        /// visible cyan-blue if the material is null or the shader
+        /// exposes no color property.
+        /// </summary>
+        [Tooltip("Base tint applied via the material's _BaseColor property (URP/Lit and the shipped FlowingWater shader both use this).")]
+        [ColorUsage(showAlpha: true, hdr: false)]
+        public Color BaseColor = new Color(0.35f, 0.55f, 0.85f, 0.9f);
+    }
+}

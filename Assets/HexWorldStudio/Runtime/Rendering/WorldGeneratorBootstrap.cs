@@ -79,9 +79,29 @@ namespace HexWorldStudio.Rendering
                  "Defaulted lower than biome cohesion so feature variety inside a biome reads as natural diversity.")]
         [SerializeField] private float _featureCohesion = WorldGenerationSettings.DefaultFeatureCohesion;
 
+        [Header("Rivers (ADR-0024)")]
+
+        [Range(0f, 1f)]
+        [Tooltip("How many rivers the world generates. " +
+                 "0 = no rivers (stage no-ops). " +
+                 "0.15 = default (Civ-style). " +
+                 "Effective source rate is RiverDensity × tile moisture, so dry areas get fewer rivers than wet ones.")]
+        [SerializeField] private float _riverDensity = WorldGenerationSettings.DefaultRiverDensity;
+
+        [Range(0, 5)]
+        [Tooltip("Minimum elevation level for a tile to spawn a river. Default 4 (of 6) reserves rivers for highlands and mountains.")]
+        [SerializeField] private int _riverSourceMinElevation = WorldGenerationSettings.DefaultRiverSourceMinElevation;
+
+        [Range(5, 200)]
+        [Tooltip("Safety cap on river length (in downhill steps). Rivers that reach water or merge with an existing river before this cap terminate normally.")]
+        [SerializeField] private int _maxRiverLength = WorldGenerationSettings.DefaultMaxRiverLength;
+
         [Header("Rendering")]
         [Tooltip("World renderer that will draw the generated map. If null, this script searches its own GameObject and children.")]
         [SerializeField] private WorldRenderer _renderer;
+
+        [Tooltip("Optional river renderer. When set, Regenerate() rebuilds river geometry after the world is rendered. Leave null to disable default river rendering — RiverEdges remains queryable on the WorldMap for custom visualizations.")]
+        [SerializeField] private RiverRenderer _riverRenderer;
 
         [Tooltip("Optional wrap renderer. When set, Regenerate() refreshes it after rendering so the cylindrical wrap stays in sync.")]
         [SerializeField] private WorldWrapRenderer _wrapRenderer;
@@ -147,9 +167,16 @@ namespace HexWorldStudio.Rendering
                     _width, _height, _seed, _landRatio, _biomes,
                     _biomeCohesion, _featureCohesion,
                     _continentShapeAlgorithm,
-                    _resources, _resourceDensity);
+                    _resources, _resourceDensity,
+                    _riverDensity, _riverSourceMinElevation, _maxRiverLength);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
+
+            if (_riverRenderer == null) _riverRenderer = GetComponent<RiverRenderer>();
+            if (_riverRenderer != null)
+            {
+                _riverRenderer.Render(LatestMap);
+            }
 
             if (_wrapRenderer == null) _wrapRenderer = GetComponent<WorldWrapRenderer>();
             if (_wrapRenderer != null)

@@ -97,12 +97,11 @@ WorldGenerationSettings (seed, dimensions, preset, content refs)
         │              per ADR-0022; no-op when Resources roster
         │              empty or ResourceDensity = 0
         ▼
-[7] HydrologyPass — carve river system: assign edge-based non-navigable
-        │              segments and tile-based navigable segments;
-        │              compute transitions along the flow
-        ▼
-[8] ResourcePlacement — honor biome rules + spacing
-        │
+[6e] RiverStage — moisture-weighted downhill walk from high-elevation
+        │              land tiles, edge-based `RiverEdge` set stored on
+        │              `WorldMap.RiverEdges` (ADR-0024). Opt-out when
+        │              RiverDensity = 0. Navigable / non-navigable
+        │              dual representation deferred to Slice 17.2.
         ▼
 [9] StartingPositions — fairness-aware seat selection
         │
@@ -132,6 +131,8 @@ Stages are internal types implementing a small `IGenerationStage` interface. The
 **Prefab tile visuals** (ADR-0017): `BiomeDefinition` and `TileFeatureDefinition` each expose an optional `public GameObject Prefab;` field. `WorldRenderer.BuildTileGameObject` resolves the visual in feature-wins precedence: `tile.Feature?.Prefab` → `tile.Biome?.Prefab` → procedural `HexMesh` + per-tile `MaterialPropertyBlock` (unchanged when both prefabs are null). The tile root always carries `HexTileBinding` plus a flat-`HexMesh` `MeshCollider` regardless of which visual path is chosen, so Slice 9 picking continues to work even on buyer prefabs that supply no colliders of their own. Data layer (`HexTile`) carries no GameObject references — the prefab lives on the ScriptableObject content, not the tile. Slice 10.1 adds prefab variants + per-tile deterministic Y rotation; Slice 10.2 bundles the CC0 Kenney Hexagon Kit and a sample biome→prefab mapping.
 
 **Dual input provider** (ADR-0018): the demo input layer ships two `ICameraInput` implementations and a runtime installer that picks the right one. `Runtime/Input/LegacyUnityInputProvider.cs` reads `UnityEngine.Input`, with every call site wrapped in `#if ENABLE_LEGACY_INPUT_MANAGER` so it stubs out cleanly under new-only projects instead of throwing `InvalidOperationException`. `Runtime/Input/InputSystem/` is a separate asmdef (`HexWorldStudio.Runtime.InputSystem`) with `defineConstraints: ["ENABLE_INPUT_SYSTEM"]` and a hard reference to `Unity.InputSystem`; it carries `InputSystemInputProvider.cs` (mirrors the legacy provider's semantics on top of `Keyboard.current` / `Mouse.current`) and `InputSystemBootstrap.cs` (a tiny `[RuntimeInitializeOnLoadMethod]` / `[InitializeOnLoadMethod]` that registers a factory on `CameraInputInstaller.InputSystemFactory`). `Runtime/Input/CameraInputInstaller.cs` is a `MonoBehaviour` on the `QuickStartScene`'s camera GameObject; on `Awake` it calls the registered factory if one is present (new system path) and falls back to `LegacyUnityInputProvider` under `#if ENABLE_LEGACY_INPUT_MANAGER`. The static-delegate hook is the conventional Unity workaround for the cross-asmdef-reference problem the InputSystem-only sibling asmdef creates. `CivCameraController` keeps reading through `ICameraInput` via `GetComponent<ICameraInput>()` — no controller change. Net effect: the QuickStart scene plays under any of Unity's three `Active Input Handling` configurations (Legacy, New, Both) without buyers touching Player Settings.
+
+**Edge-based rivers** (ADR-0024): `RiverStage` runs tenth in the pipeline (after `ResourcePlacementStage`) and populates `WorldMap.RiverEdges` — a public `IReadOnlyList<RiverEdge>` where each `RiverEdge` is a canonical `(HexCoord Coord, HexDirection Direction)` pair naming an edge between two neighboring hexes. Canonical form: lex-smaller endpoint owns, direction points toward the other; both `(A, A→B)` and `(B, B→A)` naming collapse to the same value via `RiverEdge.Canonicalize(owner, direction, mapWidth)`. Source selection: moisture-weighted probability draw over land tiles above `RiverSourceMinElevation`. Downhill walk: strict-lower neighbor with RNG tie-break, terminates on water / merge / safety cap; local land minima flip to Coast lake tiles. Opt-out via `RiverDensity = 0`. Buyer query surface on `WorldMap`: `HasRiverAt(coord, dir)` accepts either endpoint naming; `CountRiverEdgesAround(coord)` returns 0..6 for fertility scoring. `RiverRenderer` MonoBehaviour reads `RiverEdges` and emits a single procedural quad-per-edge mesh under its transform, textured by the assigned `RiverStyleAsset` (Material + WidthRelativeToHex + SurfaceYOffset + BaseColor). UVs follow the standard `U-across-V-along-flow` convention so any URP water material scrolls cleanly; the shipped `Content/RiverStyles/FlowingWater.shader` demonstrates the `uv.y += _Time.y * _FlowSpeed` idiom. `RiversRebuilt` event lets buyers subscribe for custom visualizations. Cylindrical wrap works transparently — the wrap renderer clones the Rivers child along with tiles.
 
 **Resource render modes** (ADR-0023): `ResourceDefinition` exposes a `ReplaceTile` boolean. When off (default), the resource's `Prefab` instantiates as a child of the tile root positioned at the visible top of the underlying biome / feature visual (renderer caches the per-source-prefab surface Y once and reuses it across every tile sharing that source). When on, the renderer looks up `(tile.Biome, tile.Feature)` in the resource's auto-synced `ReplacementPrefabs` list and instantiates that entry's prefab as the tile's sole visual — no biome / feature prefab is instantiated alongside. The list's entries are auto-populated from `AllowedBiomes × AllowedFeatures` via the `ResourceDefinitionEditor` custom inspector; existing prefab assignments are preserved across resyncs by `(Biome, Feature)` key match. No-prefab combos fall back to the default add-on-top behavior so buyers can iterate without breaking the demo.
 
@@ -173,14 +174,17 @@ Wrap is enforced inside `WorldMap`. The safe lookup API is `bool TryGetTile(HexC
 
 `HexCoord` itself is topology-unaware: coordinate math and wrap are separate concerns. Neighbor queries via `HexCoordExtensions.Neighbor` continue to return raw axial coords; wrap kicks in only when those coords are passed to a `WorldMap` lookup. A coord and its normalized equivalent will compare unequal under `==`; if you need "same tile" semantics across the seam, compare normalized coords or compare `HexTile` references.
 
-## River representation (dual)
+## River representation
 
-Rivers are represented in two complementary ways within a single `RiverNetwork`:
+**v1 (Slice 17):** Rivers are edge-based only, stored on `WorldMap.RiverEdges` as a canonical `IReadOnlyList<RiverEdge>` per ADR-0024. Each edge is a `(HexCoord Coord, HexDirection Direction)` pair naming the seam between two neighboring hexes; canonical form (lex-smaller endpoint owns, direction points at the other) makes deduplication trivial and lookups direction-agnostic. This covers the Civ V / VI style river network — rivers separate tiles into banks and provide gameplay adjacency bonuses without ever occupying a tile's center. The default `RiverRenderer` emits one procedural strip quad per edge; buyers who want richer visuals swap the material or subscribe to `RiversRebuilt` and render their own.
 
-- **Non-navigable rivers** live on **edges between tiles** (a hex seam). These are small streams, headwaters, and tributaries. Two adjacent tiles can be on opposite banks. Rendering: low-poly ribbon meshes along the shared edge.
-- **Navigable rivers** live on **whole tiles** (a tile *is* the river). These are wide, downstream sections that gameplay can treat as traversable water. Rendering: the tile's surface mesh uses a navigable-river material and may swap geometry.
+**Deferred to Slice 17.2 (dual representation per ADR-0006):**
 
-A single river system can include both. Transitions along the flow (an edge segment connecting into a tile-river, or a tile-river feeding additional edge segments downstream as the system braids near a delta) are explicit nodes in `RiverNetwork`. The hydrology pass decides where each transition lands based on accumulated flow, slope, and biome rules. Rationale and trade-offs are in ADR-0006.
+- **Non-navigable rivers** on edges — already shipped in Slice 17 above.
+- **Navigable rivers** on whole tiles — wide downstream sections that gameplay can treat as traversable water. Rendering: the tile's surface mesh uses a navigable-river material and may swap geometry.
+- **Transitions** where an edge segment feeds into a navigable tile (or vice-versa in a delta). Explicit nodes in a `RiverNetwork` container. The hydrology pass would decide where each transition lands based on accumulated flow, slope, and biome rules.
+
+Slice 17.2 will extend `WorldMap` with the navigable / transition surface and appropriate renderer support; the Slice 17.0 `RiverEdge` set remains the source of truth for the non-navigable path.
 
 ## Code layout inside `Assets/HexWorldStudio/`
 
@@ -191,15 +195,16 @@ Runtime/
     HexCoord.cs                 ← axial coord struct + conversions
     HexCoordExtensions.cs       ← neighbor/range/line helpers
   Data/
-    WorldMap.cs                 ← pure-data root container (class)
+    WorldMap.cs                 ← pure-data root container (class); river-edge storage + query API
     HexTile.cs                  ← per-tile class
-    RiverNetwork.cs             ← edge segments + tile segments + transitions
-    WorldMapSerialization.cs    ← JSON / binary IO
+    RiverEdge.cs                ← public struct: canonical (Coord, Direction) river segment (ADR-0024)
+    WorldMapSerialization.cs    ← JSON / binary IO (deferred)
   Content/
     BiomeDefinition.cs          ← ScriptableObject
     ResourceDefinition.cs       ← ScriptableObject
     TileFeatureDefinition.cs    ← ScriptableObject
     WorldPreset.cs              ← ScriptableObject
+    RiverStyleAsset.cs          ← ScriptableObject: river visual style (ADR-0024)
   Generation/
     HexWorldGenerator.cs        ← public entry point
     WorldGenerationSettings.cs  ← public settings (class)
@@ -211,8 +216,8 @@ Runtime/
         ElevationFieldStage.cs
         ClimateStage.cs
         BiomeAssignmentStage.cs
-        HydrologyStage.cs
         ResourcePlacementStage.cs
+        RiverStage.cs             ← moisture-weighted downhill walk; writes WorldMap.RiverEdges (ADR-0024)
         StartingPositionStage.cs
         PostProcessStage.cs
     Rng/
@@ -220,9 +225,8 @@ Runtime/
       NoiseSources.cs           ← vendored Perlin, Simplex, Worley
   Rendering/
     WorldRenderer.cs            ← MonoBehaviour; consumes WorldMap
+    RiverRenderer.cs            ← MonoBehaviour; procedural strip mesh from WorldMap.RiverEdges (ADR-0024)
     BiomeMeshCache.cs           ← instanced mesh batching
-    RiverRibbonBuilder.cs       ← non-navigable river edge meshes
-    NavigableRiverTileBuilder.cs← navigable river tile mesh/material swap
     ResourcePropPlacer.cs       ← parents resource prefabs to tiles
   Input/
     ICameraInput.cs             ← public interface (axes + click frames)

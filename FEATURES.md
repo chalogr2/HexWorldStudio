@@ -44,8 +44,8 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [x] Climate model: moisture / precipitation based on prevailing winds (Slice 6 per ADR-0012; east-to-west wind transport with orographic precipitation and rain shadow; latitude-banded wind variants per ADR-0010 still pending)
 - [~] Biome assignment from temperature/moisture lookup (Slice 6 envelope-based first-match-wins assignment shipped; richer Whittaker-style or weighted variants per ADR-0010 still pending)
 - [x] Biome + Feature cohesion smoothing (Slice 12 / ADR-0019): `BiomeCohesionStage` runs right after biome assignment, `FeatureCohesionStage` runs right after feature placement. Each is driven by a single 0..1 strength slider on `WorldGenerationSettings` (`BiomeCohesion`, `FeatureCohesion`) surfaced on `WorldGeneratorBootstrap`. Neighbor-consensus algorithm with deterministic tie-break (Biomes order / AllowedFeatures order). Strength 0 = complete no-op. Water tiles preserved (topology-classified). Feature smoothing restricted to the current biome's allow-list so it never violates biome-feature compatibility. Defaults: 0.5 for biomes (mild Civ-like blobs), 0.3 for features (preserve natural diversity).
-- [ ] River generation along elevation gradients, terminating at oceans or lakes
-- [ ] Hydrology pass: decide navigable (tile) vs non-navigable (edge) river segments and transition points
+- [x] River generation along elevation gradients, terminating at oceans or lakes (Slice 17 / ADR-0024): `RiverStage` runs tenth in the pipeline, forks RNG with label `"river-generation"`, picks moisture-weighted sources from high-elevation land tiles (`ElevationLevel ≥ RiverSourceMinElevation`, default 4 of 6), walks strictly downhill along edges, terminates at water / on merge / at safety cap. Local-minima on land flip to Coast lake tiles. Opt-out via `WorldGenerationSettings.RiverDensity = 0` (default 0.15 — Civ-style). `WorldMap.RiverEdges` exposes canonical `RiverEdge` set in stable sorted order. `WorldMap.HasRiverAt(coord, dir)` and `CountRiverEdgesAround(coord)` are the query surface for buyer scripts.
+- [ ] Hydrology pass: decide navigable (tile) vs non-navigable (edge) river segments and transition points (deferred to Slice 17.2 — v1 ships edge-only rivers)
 - [x] Resource placement honoring biome rules and minimum-distance constraints (Slice 15 / ADR-0022): optional `ResourcePlacementStage` writes `HexTile.Resource` from a buyer-supplied `ResourceDefinition` roster on `WorldGenerationSettings.Resources` (+ `ResourceDensity` slider). Empty roster = no resources (stage no-ops). Each `ResourceDefinition` exposes biome / feature / elevation filters + Rarity + MinimumSpacing + Prefab. Renderer instantiates the resource prefab as a child of the tile root. 18 shipped Civ-style resources (Wheat, Cattle, Horses, Corn, Rice, Sheep, Deer, Bananas, Furs, Spices, Sugar, Incense, Iron, Gold, Silver, Gems, Fish, Whales) pre-wired to shipped biome / feature SOs.
 - [ ] Starting-position selection (configurable player count, fairness/distance heuristics)
 - [ ] Map post-processing pass (smoothing, error correction, isolated-tile cleanup)
@@ -53,12 +53,12 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 
 ## Data Model
 
-- [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API in; serialization, river network, biome/feature/resource refs pending)
+- [~] `WorldMap` — pure-data root container (cylindrical wrap + tile array + lookup API + river-edge storage / query surface in; serialization pending)
 - [~] `HexTile` — per-tile data (coord, index, elevation, temperature, moisture, land state, discrete `ElevationLevel`, biome reference, and `TileFeature` reference all in; resource references land with the resource slice)
 - [x] Discrete `ElevationLevel` field on `HexTile` (int, 0..N-1) plus the `ElevationLevelQuantizationStage` that derives it from the continuous `Elevation` field with median-smoothing over the wrap-aware 6-neighborhood (Slice 5; default `N = 6`, per-map configurability lands with `WorldPreset` content). Water tiles pin to `ElevationLevel 0` regardless of the continuous elevation noise so oceans and coasts never render above the surrounding land (Slice 11.1 fix).
 - [x] Axial / cube / offset coordinate utilities and conversions
 - [~] Neighbor / range / line-of-sight queries (neighbor / range / line drawing landed; true LOS with obstacles requires `WorldMap` and is deferred)
-- [ ] River network representation: edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes
+- [~] River network representation: edge-based `RiverEdge` set on `WorldMap.RiverEdges` shipped in Slice 17 (ADR-0024). Navigable / non-navigable dual representation deferred to Slice 17.2.
 - [ ] JSON / binary serialization with a stable schema version
 
 ## ScriptableObject content
@@ -100,8 +100,8 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [ ] Prefab variants + per-tile rotation (Slice 10.1): `BiomeDefinition.PrefabVariants[]` (and feature counterpart) for visual variety, with per-tile deterministic Y rotation so identical prefabs don't tile visibly.
 - [x] `[CustomEditor]` for `BiomeDefinition` / `TileFeatureDefinition` (Slice 11.4): `Editor/Inspectors/BiomeDefinitionEditor.cs` adds a 2D Whittaker chart (T × M) above the default fields showing every land biome's envelope as a draggable colored rectangle. Drag edges to resize, drag interior to translate (snaps to 0.05); click any other biome's rect to ping it in the Project view. Coverage diagnostics under the chart warn on uncovered (T,M) regions and flag overlapping envelope pairs. `Editor/Inspectors/TileFeatureDefinitionEditor.cs` is the lighter sibling — same default fields, just routes the `Prefab` slot through `PermissivePrefabField` (manual drag-drop bypass) so Prefab Variants of FBX models can be assigned without hitting Unity 6's "Content type mismatch" rejection. Pure helper `BiomeEnvelopeCoverage` lives in `Runtime/Content/` (testable).
 - [x] Bundled Kenney Hexagon Kit content (Slice 10.2, shipped ahead of 10.1): CC0 1.0 Universal models under `Assets/ThirdParty/Models/` (FBX + GLB + OBJ formats + `Textures/`) with `Previews/` for buyer reference. Sample biome/feature → prefab mapping under `Assets/HexWorldStudio/Content/Prefabs/`; default biome and feature assets reference those prefabs through their `Prefab` field so the QuickStart scene renders Kenney models out of the box. Attribution in `Third-Party Notices.txt`. Known authoring caveat: Unity 6's two-pane Object Picker rejects Prefab Variants whose source is an FBX with "Content type mismatch" — workaround is to Unpack Completely; a `[CustomEditor]` that bypasses the picker filter is a planned follow-up.
-- [ ] Non-navigable river ribbon meshes (along edges)
-- [ ] Navigable river tile geometry/material (per-tile)
+- [x] Non-navigable river ribbon meshes (along edges) (Slice 17 / ADR-0024): public `RiverRenderer` MonoBehaviour builds one procedural quad per `RiverEdge` into a single shared `Mesh` textured by the assigned `RiverStyleAsset`. UVs follow the standard `U-across-V-along-flow` convention so any URP water material (including the shipped `Content/RiverStyles/FlowingWater.shader` unlit scrolling shader) produces animated flow. `RiversRebuilt` event lets buyers subscribe for custom visualizations. Cylindrical wrap-aware — the wrap renderer clones the Rivers child alongside tiles.
+- [ ] Navigable river tile geometry/material (per-tile) (deferred to Slice 17.2)
 - [ ] Resource prop placement
 - [ ] Camera rig for demo scenes
 
@@ -123,7 +123,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [x] EditMode tests for neighbor / range / line queries
 - [ ] EditMode tests for determinism (same seed + settings → identical `WorldMap`)
 - [ ] EditMode tests for biome classification edge cases
-- [ ] EditMode tests for river termination invariants (incl. navigable↔non-navigable transition rules)
+- [~] EditMode tests for river termination invariants (Slice 17: `RiverEdgeTests`, `WorldMapRiversTests`, `RiverStageTests` covering canonicalization, empty-map contract, opt-out, source filter, water termination, canonical dedup, determinism. Navigable↔non-navigable transition tests deferred to Slice 17.2.)
 - [ ] PlayMode tests for pipeline orchestrator cancellation and progress reporting
 
 ## Documentation (ships with package)

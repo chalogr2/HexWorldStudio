@@ -128,6 +128,33 @@ namespace HexWorldStudio.Content
         [Tooltip("Per-tile resource placement probability. 0 = no resources. 0.2 = Civ-style default. 1 = attempt every tile.")]
         public float ResourceDensity = WorldGenerationSettings.DefaultResourceDensity;
 
+        [Header("Rivers (ADR-0024)")]
+
+        /// <summary>
+        /// Per-source-eligible-tile probability of becoming a river
+        /// source. <c>0</c> disables the river stage entirely.
+        /// Multiplied by tile moisture — dry tiles are less likely
+        /// to spawn rivers than wet ones. See ADR-0024.
+        /// </summary>
+        [Range(0f, 1f)]
+        [Tooltip("How many rivers the world generates. 0 = no rivers. 0.15 = default (Civ-style). Higher values pack more rivers into wet, high-elevation areas.")]
+        public float RiverDensity = WorldGenerationSettings.DefaultRiverDensity;
+
+        /// <summary>
+        /// Minimum <c>ElevationLevel</c> for a land tile to be
+        /// eligible as a river source.
+        /// </summary>
+        [Range(0, 5)]
+        [Tooltip("Minimum elevation level for a tile to spawn a river. Default 4 (of 6) reserves rivers for highlands and mountains.")]
+        public int RiverSourceMinElevation = WorldGenerationSettings.DefaultRiverSourceMinElevation;
+
+        /// <summary>
+        /// Safety cap on individual river length in downhill steps.
+        /// </summary>
+        [Range(5, 200)]
+        [Tooltip("Safety cap on river length (in downhill steps). Rivers that reach water or merge before this cap terminate normally.")]
+        public int MaxRiverLength = WorldGenerationSettings.DefaultMaxRiverLength;
+
         /// <summary>
         /// Bundles this preset's fields together with a per-generation
         /// <paramref name="seed"/> into a fresh
@@ -145,7 +172,8 @@ namespace HexWorldStudio.Content
                 Width, Height, seed, LandRatio, Biomes,
                 BiomeCohesion, FeatureCohesion,
                 ContinentShapeAlgorithm,
-                Resources, ResourceDensity);
+                Resources, ResourceDensity,
+                RiverDensity, RiverSourceMinElevation, MaxRiverLength);
         }
     }
 }

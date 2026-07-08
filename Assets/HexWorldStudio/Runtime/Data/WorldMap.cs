@@ -33,6 +33,13 @@ namespace HexWorldStudio.Data
     {
         private readonly HexTile[] _tiles;
 
+        // River state (ADR-0024). Empty until RiverStage runs. The
+        // list is deterministically sorted for stable iteration; the
+        // parallel set backs O(1) HasRiverAt / CountRiverEdgesAround
+        // queries. Both stay in sync via SetRivers.
+        private RiverEdge[] _riverEdges = Array.Empty<RiverEdge>();
+        private HashSet<RiverEdge> _riverEdgeSet;
+
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
 
@@ -51,6 +58,15 @@ namespace HexWorldStudio.Data
         /// (<c>row * Width + col</c>). Buyers may iterate freely.
         /// </summary>
         public IReadOnlyList<HexTile> Tiles => _tiles;
+
+        /// <summary>
+        /// Every river segment on the map, in canonical form and stable
+        /// deterministic order (sorted by owner Q, R, direction).
+        /// Empty until the <c>RiverStage</c> runs (or if the buyer
+        /// disables rivers via <c>settings.RiverDensity = 0</c>).
+        /// See <see cref="RiverEdge"/> and ADR-0024.
+        /// </summary>
+        public IReadOnlyList<RiverEdge> RiverEdges => _riverEdges;
 
         /// <summary>
         /// Constructs an empty map (every tile initialized to default
@@ -188,6 +204,84 @@ namespace HexWorldStudio.Data
                     $"Index must be in [0, {_tiles.Length}).");
             }
             return _tiles[index];
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if a river runs along the edge between
+        /// <paramref name="coord"/> and its neighbor in
+        /// <paramref name="direction"/>. Accepts either endpoint /
+        /// direction naming — the query is canonicalized internally.
+        /// </summary>
+        /// <param name="coord">One endpoint of the queried edge.</param>
+        /// <param name="direction">
+        /// Direction from <paramref name="coord"/> toward the other
+        /// endpoint.
+        /// </param>
+        public bool HasRiverAt(HexCoord coord, HexDirection direction)
+        {
+            if (_riverEdgeSet == null || _riverEdgeSet.Count == 0) return false;
+            HexCoord canonical = Normalize(coord);
+            RiverEdge query = RiverEdge.Canonicalize(canonical, direction, Width);
+            return _riverEdgeSet.Contains(query);
+        }
+
+        /// <summary>
+        /// Returns the number of river edges incident to
+        /// <paramref name="coord"/>, in <c>[0, 6]</c>. Convenience
+        /// helper for buyers implementing river-adjacency bonuses
+        /// (starting positions, fertility scoring, resource yields).
+        /// </summary>
+        public int CountRiverEdgesAround(HexCoord coord)
+        {
+            if (_riverEdgeSet == null || _riverEdgeSet.Count == 0) return 0;
+            HexCoord canonical = Normalize(coord);
+            int count = 0;
+            for (int d = 0; d < 6; d++)
+            {
+                RiverEdge query = RiverEdge.Canonicalize(canonical, (HexDirection)d, Width);
+                if (_riverEdgeSet.Contains(query)) count++;
+            }
+            return count;
+        }
+
+        // Commits the pipeline's collected river set into the map.
+        // Sorted for deterministic iteration order (RiverEdges is
+        // documented as stable). Called once by RiverStage at the end
+        // of its run; not exposed to buyers.
+        internal void SetRivers(IEnumerable<RiverEdge> edges)
+        {
+            if (edges == null)
+            {
+                _riverEdges = Array.Empty<RiverEdge>();
+                _riverEdgeSet = null;
+                return;
+            }
+
+            var set = new HashSet<RiverEdge>();
+            foreach (RiverEdge e in edges) set.Add(e);
+
+            RiverEdge[] arr = new RiverEdge[set.Count];
+            set.CopyTo(arr);
+            Array.Sort(arr, RiverEdgeOrder.Instance);
+
+            _riverEdges = arr;
+            _riverEdgeSet = set;
+        }
+
+        // Stable order used to sort RiverEdges for deterministic
+        // iteration: owner Q, owner R, then direction.
+        private sealed class RiverEdgeOrder : IComparer<RiverEdge>
+        {
+            public static readonly RiverEdgeOrder Instance = new RiverEdgeOrder();
+
+            public int Compare(RiverEdge a, RiverEdge b)
+            {
+                int cmp = a.Coord.Q.CompareTo(b.Coord.Q);
+                if (cmp != 0) return cmp;
+                cmp = a.Coord.R.CompareTo(b.Coord.R);
+                if (cmp != 0) return cmp;
+                return ((int)a.Direction).CompareTo((int)b.Direction);
+            }
         }
     }
 }
