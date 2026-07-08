@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   Material: {fileID: 2100000, guid: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6, type: 2}
   WidthRelativeToHex: 0.15
-  SurfaceYOffset: 0.2
+  SurfaceYOffset: 0.4
   BaseColor: {r: 0.35, g: 0.55, b: 0.85, a: 0.9}

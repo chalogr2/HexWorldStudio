@@ -132,12 +132,26 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
                 float currentElev = ResolveElevation(current);
 
                 neighborBuffer.Clear();
+                bool hasWaterNeighbor = false;
                 float lowest = float.PositiveInfinity;
                 for (int d = 0; d < 6; d++)
                 {
                     HexDirection dir = (HexDirection)d;
                     HexCoord neighborRaw = current.Coord.Neighbor(dir);
                     if (!map.TryGetTile(neighborRaw, out HexTile neighbor)) continue;
+
+                    // Water neighbors are candidates for TERMINATION,
+                    // not walk destinations. Rivers never occupy a
+                    // land ↔ water edge (Civ V / VI convention) —
+                    // they run along land ↔ land edges and meet the
+                    // sea at a corner. Track the presence of water so
+                    // we know to stop the walk once no downhill land
+                    // remains.
+                    if (neighbor.LandState == TileLandState.Water)
+                    {
+                        hasWaterNeighbor = true;
+                        continue;
+                    }
 
                     float neighborElev = ResolveElevation(neighbor);
                     if (neighborElev >= currentElev) continue;
@@ -148,10 +162,21 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
 
                 if (neighborBuffer.Count == 0)
                 {
-                    // Local minimum on land: flip to a lake tile
-                    // (Coast biome) so the river terminates in water.
-                    // Skip when the buyer roster has no coast biome
-                    // (unlikely — Generate validates roles).
+                    // No downhill LAND neighbor. Two cases:
+                    if (hasWaterNeighbor)
+                    {
+                        // We've reached the coast. Terminate the walk
+                        // WITHOUT recording an edge into water — the
+                        // last recorded land ↔ land edge is the
+                        // river's mouth, and its vertex touching a
+                        // water tile forms the visible corner where
+                        // the river meets the sea.
+                        return;
+                    }
+                    // True inland local minimum: flip to a lake tile
+                    // so the river terminates in water. Skipped when
+                    // the buyer roster has no coast biome (unlikely
+                    // — Generate validates roles).
                     if (lakeBiome != null)
                     {
                         current.LandState = TileLandState.Water;
@@ -171,10 +196,6 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
                 // downstream flow is already in the set; adding
                 // further edges would just duplicate an existing tail.
                 if (!edges.Add(edge)) return;
-
-                // Reached water = terminate. The edge is committed;
-                // the river visibly meets the sea at this seam.
-                if (chosenTile.LandState == TileLandState.Water) return;
 
                 current = chosenTile;
             }

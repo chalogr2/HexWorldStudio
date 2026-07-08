@@ -153,11 +153,16 @@ namespace HexWorldStudio.Tests
             }
         }
 
-        // ---- Termination at water --------------------------------
+        // ---- Termination at coast --------------------------------
 
         [Test]
-        public void Execute_DownhillWalk_TerminatesAtWater()
+        public void Execute_RiverEdges_AreAllBetweenLandTiles()
         {
+            // Rivers must never occupy a land ↔ water edge; the walk
+            // terminates before crossing into water and the last
+            // recorded edge is a land ↔ land seam whose vertex
+            // touches a water tile (river mouth). Civ V / VI
+            // convention per ADR-0024.
             var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
             try
             {
@@ -167,26 +172,17 @@ namespace HexWorldStudio.Tests
                 Assert.That(ctx.Map.RiverEdges.Count, Is.GreaterThan(0),
                     "Expected at least one river on the ramp world at density=1.");
 
-                // Every river must have at least one edge where one
-                // endpoint is a water tile — else the walk did not
-                // terminate in water. We verify by checking that the
-                // set of coords involved in some edge overlaps water
-                // tiles (i.e., at least one edge names a water tile
-                // on one side).
-                bool sawWaterAdjacentEdge = false;
                 foreach (RiverEdge e in ctx.Map.RiverEdges)
                 {
                     ctx.Map.TryGetTile(e.Coord, out HexTile ownerTile);
                     ctx.Map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile otherTile);
-                    if ((ownerTile != null && ownerTile.LandState == TileLandState.Water) ||
-                        (otherTile != null && otherTile.LandState == TileLandState.Water))
-                    {
-                        sawWaterAdjacentEdge = true;
-                        break;
-                    }
+                    Assert.That(ownerTile, Is.Not.Null);
+                    Assert.That(otherTile, Is.Not.Null);
+                    Assert.That(ownerTile.LandState, Is.EqualTo(TileLandState.Land),
+                        $"River edge {e} has a water endpoint (owner {ownerTile.Coord}).");
+                    Assert.That(otherTile.LandState, Is.EqualTo(TileLandState.Land),
+                        $"River edge {e} has a water endpoint (other {otherTile.Coord}).");
                 }
-                Assert.That(sawWaterAdjacentEdge, Is.True,
-                    "At least one river must terminate at water on the ramp world.");
             }
             finally
             {
@@ -194,6 +190,56 @@ namespace HexWorldStudio.Tests
                 Object.DestroyImmediate(ocean);
                 Object.DestroyImmediate(coast);
             }
+        }
+
+        [Test]
+        public void Execute_AtLeastOneRiverReachesTheCoast()
+        {
+            // Companion to the "no water-edge" invariant: verify the
+            // walk actually gets to the coast (not that every walk
+            // fails to reach water at all — that would be a silent
+            // regression). Some river edge must involve a land tile
+            // that has a water neighbor.
+            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
+            try
+            {
+                SeedRampWorld(ctx.Map, land, ocean, coast);
+                new RiverStage().Execute(ctx);
+
+                bool coastalEdgeExists = false;
+                foreach (RiverEdge e in ctx.Map.RiverEdges)
+                {
+                    ctx.Map.TryGetTile(e.Coord, out HexTile ownerTile);
+                    ctx.Map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile otherTile);
+                    if (HasWaterNeighbor(ctx.Map, ownerTile) || HasWaterNeighbor(ctx.Map, otherTile))
+                    {
+                        coastalEdgeExists = true;
+                        break;
+                    }
+                }
+                Assert.That(coastalEdgeExists, Is.True,
+                    "At least one river edge must involve a land tile adjacent to water — else no river reaches the coast.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(land);
+                Object.DestroyImmediate(ocean);
+                Object.DestroyImmediate(coast);
+            }
+        }
+
+        private static bool HasWaterNeighbor(WorldMap map, HexTile tile)
+        {
+            if (tile == null) return false;
+            foreach (HexCoord n in tile.Coord.Neighbors())
+            {
+                if (map.TryGetTile(n, out HexTile neighbor)
+                    && neighbor.LandState == TileLandState.Water)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // ---- No self-duplication --------------------------------
