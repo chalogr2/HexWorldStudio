@@ -135,8 +135,12 @@ namespace HexWorldStudio.Rendering
             float halfWidth = 0.5f * _style.WidthRelativeToHex * HexMesh.WidthFlatToFlat;
             float surfaceOffset = _style.SurfaceYOffset;
 
-            // Resolve the height model from the assigned WorldRenderer,
-            // or fall back to sensible defaults if none is wired.
+            // Fallback height model — only used when no WorldRenderer
+            // is wired (unusual — QuickStart always has one). When a
+            // WorldRenderer is present, we ask it for the actual
+            // visible top of each tile's rendered geometry so rivers
+            // sit on the true surface of buyer prefabs (Kenney Hexagon
+            // Kit tiles rise well above their pivots).
             float oceanY   = _worldRenderer != null ? _worldRenderer.OceanRenderHeight : 0f;
             float coastR   = _worldRenderer != null ? _worldRenderer.CoastRiseAboveOcean : 0.05f;
             float landR    = _worldRenderer != null ? _worldRenderer.LandRiseAboveWater : 0.15f;
@@ -154,8 +158,8 @@ namespace HexWorldStudio.Rendering
                 Vector3 aCenter = HexMesh.WorldPosition(a, 0, 0f);
                 Vector3 bCenter = HexMesh.WorldPosition(bRaw, 0, 0f);
 
-                float yA = WorldRenderer.ComputeTileY(tileA, oceanY, coastR, landR, stepY);
-                float yB = WorldRenderer.ComputeTileY(tileB, oceanY, coastR, landR, stepY);
+                float yA = ResolveTileTopY(map, tileA, a, oceanY, coastR, landR, stepY);
+                float yB = ResolveTileTopY(map, tileB, bRaw, oceanY, coastR, landR, stepY);
                 float y  = Mathf.Max(yA, yB) + surfaceOffset;
 
                 aCenter.y = 0f;
@@ -232,6 +236,21 @@ namespace HexWorldStudio.Rendering
                 block.SetColor(BaseColorProperty, _style.BaseColor);
                 renderer.SetPropertyBlock(block);
             }
+        }
+
+        // Resolves the world-space Y at the top of the given tile's
+        // visible geometry. Prefers the assigned WorldRenderer's
+        // real per-tile bounds measurement (accounts for prefab
+        // height) and falls back to the analytic stepped-baseline
+        // model when no WorldRenderer is wired.
+        private float ResolveTileTopY(WorldMap map, HexTile tile, HexCoord coord,
+                                      float oceanY, float coastRise, float landRise, float stepY)
+        {
+            if (_worldRenderer != null && map.TryGetIndex(coord, out int tileIndex))
+            {
+                return _worldRenderer.GetTileTopY(tileIndex);
+            }
+            return WorldRenderer.ComputeTileY(tile, oceanY, coastRise, landRise, stepY);
         }
 
         private static void DestroySafely(UnityEngine.Object obj)

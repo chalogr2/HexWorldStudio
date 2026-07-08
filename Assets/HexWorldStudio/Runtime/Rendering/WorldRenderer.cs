@@ -345,6 +345,33 @@ namespace HexWorldStudio.Rendering
             return sextant * 60f;
         }
 
+        /// <summary>
+        /// World-space Y of the visible top of the tile at the given
+        /// index — the top of whichever geometry the tile actually
+        /// renders (procedural HexMesh, biome prefab, feature prefab,
+        /// or replaced resource prefab). Falls back to the tile
+        /// root's Y when the tile carries no renderers.
+        /// </summary>
+        /// <remarks>
+        /// Used by <see cref="RiverRenderer"/> so river strips sit
+        /// on the actual surface of buyer prefabs (e.g., Kenney
+        /// Hexagon Kit tiles whose visible geometry rises above the
+        /// pivot). Cheap: walks the tile's Renderer components once
+        /// per river-edge endpoint; total cost scales with river
+        /// count × 2, dwarfed by mesh construction.
+        /// </remarks>
+        internal float GetTileTopY(int tileIndex)
+        {
+            if (tileIndex < 0 || tileIndex >= _tileObjects.Count) return 0f;
+            GameObject go = _tileObjects[tileIndex];
+            if (go == null) return 0f;
+            Renderer[] rs = go.GetComponentsInChildren<Renderer>(includeInactive: true);
+            if (rs == null || rs.Length == 0) return go.transform.position.y;
+            Bounds b = rs[0].bounds;
+            for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+            return b.max.y;
+        }
+
         // Returns the tile-root-local Y of the visible top of the
         // given main visual. Computed once per source prefab via the
         // first instance's combined Renderer bounds and cached for
