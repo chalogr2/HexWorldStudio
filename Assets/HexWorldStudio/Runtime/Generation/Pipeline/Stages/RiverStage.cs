@@ -99,7 +99,92 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
                 WalkDownhill(source, map, rng, edges, neighborBuffer, maxLength, lakeBiome);
             }
 
+            // Post-process: the walk records edges that share TILES
+            // (chain L → M → R shares tile M between edges (L, M)
+            // and (M, R)), not hex vertices. For rivers to render as
+            // a continuous chain of edges connected corner-to-corner,
+            // interior tiles with 2 incident walk edges get bridging
+            // hex edges added between them — following the shortest
+            // arc along the tile's boundary. This gives the Civ V / VI
+            // "rivers wind around tiles" look.
+            AddCornerConnectors(edges, map, rng);
+
             map.SetRivers(edges);
+        }
+
+        // Post-processing pass. For each land tile T with exactly 2
+        // incident walk edges whose directions are non-adjacent (they
+        // don't already share a corner), insert intermediate hex
+        // edges along T's boundary to bridge them into a corner-
+        // connected chain. Skips intermediates that would produce a
+        // land ↔ water edge (invariant preserved from WalkDownhill).
+        private static void AddCornerConnectors(HashSet<RiverEdge> edges, WorldMap map, RngService rng)
+        {
+            var tileIncidents = new Dictionary<HexCoord, List<HexDirection>>();
+            foreach (RiverEdge e in edges)
+            {
+                HexCoord a = e.Coord;
+                HexCoord b = map.Normalize(e.Coord.Neighbor(e.Direction));
+                AddIncident(tileIncidents, a, e.Direction);
+                AddIncident(tileIncidents, b, RiverEdge.Opposite(e.Direction));
+            }
+
+            // Snapshot iterable keys so we can mutate `edges` inside
+            // the loop without invalidating enumeration.
+            var tiles = new HexCoord[tileIncidents.Count];
+            int idx = 0;
+            foreach (HexCoord key in tileIncidents.Keys) tiles[idx++] = key;
+
+            foreach (HexCoord tileCoord in tiles)
+            {
+                List<HexDirection> incidents = tileIncidents[tileCoord];
+                if (incidents.Count != 2) continue;
+
+                int d1 = (int)incidents[0];
+                int d2 = (int)incidents[1];
+                int diff = ((d2 - d1) % 6 + 6) % 6;
+
+                // diff == 1 or 5: incident edges already share a hex
+                // corner on this tile — nothing to bridge.
+                if (diff == 1 || diff == 5) continue;
+
+                // Pick the shortest arc along the tile's boundary.
+                // Ties (diff == 3, opposite sides) resolved by RNG so
+                // rivers occasionally bend around either the "top" or
+                // "bottom" of a tile deterministically per seed.
+                int arcStep;
+                int arcLen;
+                if (diff == 2) { arcStep = +1; arcLen = 1; }
+                else if (diff == 4) { arcStep = -1; arcLen = 1; }
+                else /* diff == 3 */ { arcStep = rng.NextBool() ? +1 : -1; arcLen = 2; }
+
+                int cursor = d1;
+                for (int step = 0; step < arcLen; step++)
+                {
+                    cursor = ((cursor + arcStep) % 6 + 6) % 6;
+                    HexDirection connectorDir = (HexDirection)cursor;
+
+                    HexCoord otherRaw = tileCoord.Neighbor(connectorDir);
+                    if (!map.TryGetTile(otherRaw, out HexTile otherTile)) break;
+                    // Preserve the "no land ↔ water edge" invariant
+                    // from WalkDownhill: if the connector would cross
+                    // into water, stop bridging here rather than
+                    // laying an intermediate edge on the coastline.
+                    if (otherTile.LandState == TileLandState.Water) break;
+
+                    edges.Add(RiverEdge.Canonicalize(tileCoord, connectorDir, map.Width));
+                }
+            }
+        }
+
+        private static void AddIncident(Dictionary<HexCoord, List<HexDirection>> map, HexCoord tile, HexDirection dir)
+        {
+            if (!map.TryGetValue(tile, out List<HexDirection> list))
+            {
+                list = new List<HexDirection>(3);
+                map[tile] = list;
+            }
+            list.Add(dir);
         }
 
         // Walks strictly downhill from `source` recording edges into

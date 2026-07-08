@@ -120,17 +120,29 @@ namespace HexWorldStudio.Rendering
 
         private void OnDestroy() => Clear();
 
-        // Builds one triangulated quad per RiverEdge into a single
-        // shared Mesh. Emits UVs with U across the river (bank to
-        // bank) and V along the flow (upstream to downstream) so
-        // shader-graph water materials scroll cleanly.
+        // Builds a triangulated strip per RiverEdge into a single
+        // shared Mesh: a rectangle along the shared hex edge (from
+        // one hex corner to the other) plus a small hexagon cap
+        // centered at each hex-corner endpoint. Adjacent river edges
+        // share hex corners (via the post-processing pass in
+        // RiverStage), so their hexagon caps are centered on the
+        // same point — the caps overlap perfectly and hide the
+        // orientation mismatch between adjacent rectangle short
+        // ends. UVs on the rectangle body follow U-across-V-along-
+        // flow so shader-graph water materials scroll cleanly.
         private void BuildRiverMesh(WorldMap map, IReadOnlyList<RiverEdge> edges)
         {
+            const int CapRingCount = 6;
+            const int VertsPerCap = 1 + CapRingCount;
+            const int VertsPerEdge = 4 + 2 * VertsPerCap;
+            const int TrisPerCap = CapRingCount;
+            const int IndicesPerEdge = 6 + 2 * TrisPerCap * 3;
+
             int quadCount = edges.Count;
-            var vertices  = new Vector3[quadCount * 4];
-            var uvs       = new Vector2[quadCount * 4];
-            var normals   = new Vector3[quadCount * 4];
-            var triangles = new int[quadCount * 6];
+            var vertices  = new Vector3[quadCount * VertsPerEdge];
+            var uvs       = new Vector2[quadCount * VertsPerEdge];
+            var normals   = new Vector3[quadCount * VertsPerEdge];
+            var triangles = new int[quadCount * IndicesPerEdge];
 
             float halfWidth = 0.5f * _style.WidthRelativeToHex * HexMesh.WidthFlatToFlat;
             float surfaceOffset = _style.SurfaceYOffset;
@@ -167,67 +179,57 @@ namespace HexWorldStudio.Rendering
                 aCenter.y = 0f;
                 bCenter.y = 0f;
 
-                Vector3 mid  = (aCenter + bCenter) * 0.5f;
-                Vector3 diff = bCenter - aCenter;
-                Vector3 edgeDir = new Vector3(-diff.z, 0f, diff.x).normalized;
+                Vector3 mid       = (aCenter + bCenter) * 0.5f;
+                Vector3 diff      = bCenter - aCenter;
+                Vector3 flowDir   = new Vector3(-diff.z, 0f, diff.x).normalized;
+                Vector3 acrossDir = diff.normalized;
 
-                // Tile-center-to-tile-center kite: pointy ends at
-                // the two neighboring TILE CENTERS, widest at the
-                // shared-edge midpoint. Chained river edges share
-                // tile centers (a chain L → M → R has the LM edge
-                // ending at M's center and the MR edge starting at
-                // M's center), so consecutive kites meet exactly at
-                // the shared tile center — geometrically continuous.
-                //
-                // (Anchoring at hex corners, our previous attempt,
-                // only helped Y-junctions where 3 edges meet at one
-                // corner; ordinary chain rivers share tiles, not
-                // corners, so the tips landed on entirely different
-                // hex corners on opposite sides of the middle tile
-                // and left visible gaps.)
-                //
-                // The kite lives entirely between the two neighboring
-                // land tiles' centers, so it never extends across a
-                // land-water boundary either.
-                Vector3 wingB = mid + edgeDir * halfWidth;
-                Vector3 wingA = mid - edgeDir * halfWidth;
+                // Rectangle body: the strip runs along the shared
+                // hex edge from one hex corner (pStart) to the other
+                // (pEnd), with width extending halfWidth into each
+                // neighboring tile. Straight-sided rectangle back
+                // per the buyer request.
+                Vector3 pStart    = mid + flowDir * (HexMesh.OuterRadius * 0.5f);
+                Vector3 pEnd      = mid - flowDir * (HexMesh.OuterRadius * 0.5f);
+                Vector3 halfCross = acrossDir * halfWidth;
 
-                Vector3 v0 = new Vector3(aCenter.x, y, aCenter.z);
-                Vector3 v1 = new Vector3(wingB.x,   y, wingB.z);
-                Vector3 v2 = new Vector3(bCenter.x, y, bCenter.z);
-                Vector3 v3 = new Vector3(wingA.x,   y, wingA.z);
+                int v = i * VertsPerEdge;
 
-                int v = i * 4;
-                vertices[v + 0] = v0;
-                vertices[v + 1] = v1;
-                vertices[v + 2] = v2;
-                vertices[v + 3] = v3;
+                Vector3 q0 = new Vector3(pStart.x + halfCross.x, y, pStart.z + halfCross.z);
+                Vector3 q1 = new Vector3(pStart.x - halfCross.x, y, pStart.z - halfCross.z);
+                Vector3 q2 = new Vector3(pEnd.x   + halfCross.x, y, pEnd.z   + halfCross.z);
+                Vector3 q3 = new Vector3(pEnd.x   - halfCross.x, y, pEnd.z   - halfCross.z);
 
-                // UVs: V goes from A_center (0) through the shared-
-                // edge midpoint (0.5) to B_center (1). U spans the
-                // two banks at the midpoint. The kite tapers at the
-                // tile centers to zero U-width, so the water texture
-                // pinches there — reads as flow speeding up through
-                // the tile interior, which is fine visually.
-                uvs[v + 0] = new Vector2(0.5f, 0f);
-                uvs[v + 1] = new Vector2(1f,   0.5f);
-                uvs[v + 2] = new Vector2(0.5f, 1f);
-                uvs[v + 3] = new Vector2(0f,   0.5f);
-
+                vertices[v + 0] = q0; uvs[v + 0] = new Vector2(1f, 0f);
+                vertices[v + 1] = q1; uvs[v + 1] = new Vector2(0f, 0f);
+                vertices[v + 2] = q2; uvs[v + 2] = new Vector2(1f, 1f);
+                vertices[v + 3] = q3; uvs[v + 3] = new Vector2(0f, 1f);
                 normals[v + 0] = Vector3.up;
                 normals[v + 1] = Vector3.up;
                 normals[v + 2] = Vector3.up;
                 normals[v + 3] = Vector3.up;
 
-                // Two triangles forming the kite. Shader has
-                // Cull Off so winding order is not critical.
-                int t = i * 6;
+                int t = i * IndicesPerEdge;
                 triangles[t + 0] = v + 0;
-                triangles[t + 1] = v + 1;
-                triangles[t + 2] = v + 2;
-                triangles[t + 3] = v + 0;
+                triangles[t + 1] = v + 2;
+                triangles[t + 2] = v + 1;
+                triangles[t + 3] = v + 1;
                 triangles[t + 4] = v + 2;
                 triangles[t + 5] = v + 3;
+                t += 6;
+
+                // Hexagon caps centered at each hex-corner endpoint
+                // (pStart, pEnd). Radius = halfWidth so the cap
+                // covers the rectangle's short-side width. Adjacent
+                // river edges share hex corners (post-processing in
+                // RiverStage guarantees corner-connected chains), so
+                // their caps are centered on the same point and
+                // overlap perfectly — smoothing over the width-axis
+                // mismatch between adjacent rectangle short ends.
+                int capStart = v + 4;
+                t = BuildCornerCap(vertices, uvs, normals, triangles, capStart, t, pStart, y, halfWidth);
+                int capEnd = capStart + VertsPerCap;
+                t = BuildCornerCap(vertices, uvs, normals, triangles, capEnd, t, pEnd, y, halfWidth);
             }
 
             _riverMesh = new Mesh { name = "HexWorldStudio.Rivers" };
@@ -257,6 +259,41 @@ namespace HexWorldStudio.Rendering
                 block.SetColor(BaseColorProperty, _style.BaseColor);
                 renderer.SetPropertyBlock(block);
             }
+        }
+
+        // Emits a hexagonal disc centered at `center` with radius
+        // `radius` into the vertex / index buffers, starting at
+        // `vertexStart` and `indexCursor`. Returns the new index
+        // cursor. Six triangles fan from the center vertex around
+        // six ring vertices at 60° increments.
+        private static int BuildCornerCap(
+            Vector3[] vertices, Vector2[] uvs, Vector3[] normals, int[] triangles,
+            int vertexStart, int indexCursor, Vector3 center, float y, float radius)
+        {
+            const int Ring = 6;
+            vertices[vertexStart]  = new Vector3(center.x, y, center.z);
+            uvs[vertexStart]       = new Vector2(0.5f, 0.5f);
+            normals[vertexStart]   = Vector3.up;
+
+            for (int r = 0; r < Ring; r++)
+            {
+                float angle = r * (Mathf.PI * 2f / Ring);
+                float cx = center.x + Mathf.Cos(angle) * radius;
+                float cz = center.z + Mathf.Sin(angle) * radius;
+                vertices[vertexStart + 1 + r] = new Vector3(cx, y, cz);
+                uvs[vertexStart + 1 + r]      = new Vector2(0.5f + Mathf.Cos(angle) * 0.5f,
+                                                            0.5f + Mathf.Sin(angle) * 0.5f);
+                normals[vertexStart + 1 + r]  = Vector3.up;
+            }
+
+            for (int r = 0; r < Ring; r++)
+            {
+                int next = (r + 1) % Ring;
+                triangles[indexCursor++] = vertexStart;
+                triangles[indexCursor++] = vertexStart + 1 + r;
+                triangles[indexCursor++] = vertexStart + 1 + next;
+            }
+            return indexCursor;
         }
 
         private static void DestroySafely(UnityEngine.Object obj)
