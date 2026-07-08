@@ -106,6 +106,17 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
         // `edges`. Terminates on: reaching water, merging with an
         // existing edge, hitting a local minimum (which is flipped to
         // a lake), or exceeding maxLength.
+        //
+        // The walk uses the CONTINUOUS Elevation field (float noise),
+        // not the discretized ElevationLevel — otherwise elevation
+        // smoothing produces same-level plateaus of neighbors and the
+        // strict-lower rule terminates the walk after one step. Water
+        // tiles' Elevation is naturally lower than land (they were
+        // classified as water by the continent-shape stage precisely
+        // because they fell below the sea-level threshold), so the
+        // "downhill" walk naturally reaches the sea without special-
+        // casing. Fallback to ElevationLevel / 5 when Elevation is
+        // NaN (test scaffolding that doesn't seed the noise field).
         private static void WalkDownhill(
             HexTile source,
             WorldMap map,
@@ -118,38 +129,21 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             HexTile current = source;
             for (int step = 0; step < maxLength; step++)
             {
-                // Collect strictly lower neighbors. Ties (multiple
-                // neighbors at the same minimum) are resolved by RNG
-                // pick from the tie set — the picked tile becomes the
-                // next step.
+                float currentElev = ResolveElevation(current);
+
                 neighborBuffer.Clear();
-                int lowest = int.MaxValue;
+                float lowest = float.PositiveInfinity;
                 for (int d = 0; d < 6; d++)
                 {
                     HexDirection dir = (HexDirection)d;
                     HexCoord neighborRaw = current.Coord.Neighbor(dir);
                     if (!map.TryGetTile(neighborRaw, out HexTile neighbor)) continue;
 
-                    // Water neighbor is always a valid terminator,
-                    // even if its elevation-level is equal to ours
-                    // (Coast tiles pin to ElevationLevel 0). Include
-                    // in candidates unconditionally.
-                    bool isWater = neighbor.LandState == TileLandState.Water;
-                    int level = neighbor.ElevationLevel;
+                    float neighborElev = ResolveElevation(neighbor);
+                    if (neighborElev >= currentElev) continue;
 
-                    if (isWater)
-                    {
-                        // Water is the strongest downhill signal:
-                        // pin lowest to -1 so any water candidate
-                        // beats any land candidate on this step.
-                        if (lowest > -1) { neighborBuffer.Clear(); lowest = -1; }
-                        if (lowest == -1) neighborBuffer.Add((dir, neighbor));
-                        continue;
-                    }
-
-                    if (level >= current.ElevationLevel) continue;
-                    if (level < lowest) { neighborBuffer.Clear(); lowest = level; }
-                    if (level == lowest) neighborBuffer.Add((dir, neighbor));
+                    if (neighborElev < lowest) { neighborBuffer.Clear(); lowest = neighborElev; }
+                    if (neighborElev == lowest) neighborBuffer.Add((dir, neighbor));
                 }
 
                 if (neighborBuffer.Count == 0)
@@ -184,6 +178,16 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
 
                 current = chosenTile;
             }
+        }
+
+        // Continuous elevation for the downhill walk. Falls back to
+        // discretized ElevationLevel scaled into [0, 1] when the
+        // continuous field is NaN (test scaffolding).
+        private static float ResolveElevation(HexTile tile)
+        {
+            if (!float.IsNaN(tile.Elevation)) return tile.Elevation;
+            if (tile.ElevationLevel < 0) return 0f;
+            return tile.ElevationLevel / 5f;
         }
 
         private static BiomeDefinition FindCoastBiome(IReadOnlyList<BiomeDefinition> biomes)

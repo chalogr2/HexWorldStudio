@@ -59,8 +59,13 @@ namespace HexWorldStudio.Tests
 
         // Build an elevation ramp: high on the west (source area),
         // dropping east until the last two columns turn into ocean.
+        // Sets BOTH the continuous Elevation (which RiverStage's
+        // downhill walk uses) AND the discretized ElevationLevel
+        // (which the source filter uses) so the ramp reads correctly
+        // to every consumer.
         private static void SeedRampWorld(WorldMap map, BiomeDefinition land, BiomeDefinition ocean, BiomeDefinition coast)
         {
+            int denom = Mathf.Max(1, Width - 1);
             foreach (HexTile t in map.Tiles)
             {
                 (int col, int row) = t.Coord.ToOffsetOddR();
@@ -70,12 +75,18 @@ namespace HexWorldStudio.Tests
                     t.LandState = TileLandState.Water;
                     t.Biome = (col == Width - 2) ? coast : ocean;
                     t.ElevationLevel = 0;
+                    t.Elevation = 0.05f - (col - (Width - 2)) * 0.02f;
                 }
                 else
                 {
                     t.LandState = TileLandState.Land;
                     t.Biome = land;
-                    // Higher on west (col=0), lower on east (col=Width-3).
+                    // Continuous ramp from 1.0 at col 0 down to 0.15
+                    // at col Width-3 — strictly decreasing per column
+                    // so the downhill walk always has a lower neighbor.
+                    t.Elevation = 1f - (col / (float)denom) * 0.85f;
+                    // Discretized level: 5 at west → 1 at the last
+                    // land column, matching the continuous ramp.
                     int stepsFromEast = (Width - 3) - col;
                     t.ElevationLevel = Mathf.Clamp(stepsFromEast, 1, 5);
                 }

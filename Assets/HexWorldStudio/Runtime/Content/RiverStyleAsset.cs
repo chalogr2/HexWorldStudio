@@ -55,12 +55,17 @@ namespace HexWorldStudio.Content
         public float WidthRelativeToHex = 0.15f;
 
         /// <summary>
-        /// Small positive Y offset added to the strip so it sits
-        /// above the underlying tile mesh without z-fighting.
+        /// Y offset above the tile's pivot where the river strip
+        /// sits. The tile pivot is the bottom of the visible tile
+        /// geometry; this offset lifts the strip to the top of the
+        /// terrain base surface. For the shipped Kenney Hexagon Kit
+        /// prefabs, <c>0.2</c> puts the strip on the visible surface.
+        /// Buyers using shorter prefabs decrease it; taller
+        /// prefabs increase it.
         /// </summary>
-        [Range(-0.05f, 0.1f)]
-        [Tooltip("Y offset from the tile surface. Small positive value prevents z-fighting with terrain; negative cuts a slight channel into the land.")]
-        public float SurfaceYOffset = 0.005f;
+        [Range(-0.1f, 1f)]
+        [Tooltip("Y offset above the tile pivot where the strip sits. 0.2 = Kenney Hexagon Kit terrain surface (default). Increase for taller prefabs; decrease for flat/procedural tiles.")]
+        public float SurfaceYOffset = 0.2f;
 
         /// <summary>
         /// Base tint applied via the material's <c>_BaseColor</c>
