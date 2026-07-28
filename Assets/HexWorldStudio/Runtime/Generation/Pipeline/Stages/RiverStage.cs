@@ -46,9 +46,18 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
     /// If the recorded edge is already in the set, terminate — the
     /// walk has merged with an existing river. If no downhill
     /// neighbor exists (rare on smoothed terrain) the tile is a local
-    /// minimum and is flipped to a Coast lake tile, then terminated.
-    /// Safety cap: no walk exceeds
+    /// minimum: the walk terminates and the tile is queued as a
+    /// pending lake. Safety cap: no walk exceeds
     /// <see cref="WorldGenerationSettings.MaxRiverLength"/> steps.
+    /// </para>
+    /// <para>
+    /// Algorithm — deferred lakes: pending local minima are flipped to
+    /// the roster's coastal-water biome only after every walk has
+    /// completed, then any river edge that gained a water endpoint is
+    /// pruned. Flipping mid-walk would retroactively turn the edge
+    /// that arrived at the minimum into a land ↔ water edge, breaking
+    /// the "rivers never occupy a shoreline" invariant that the rest
+    /// of the stage maintains.
     /// </para>
     /// <para>
     /// Cost: <c>O(candidates + rivers × maxLength × 6)</c>. At the
@@ -82,6 +91,15 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             var edges = new HashSet<RiverEdge>();
             var neighborBuffer = new List<(HexDirection dir, HexTile tile)>(6);
 
+            // Tiles that terminated a walk at an inland local minimum.
+            // Collected here and flipped to lakes only AFTER every walk
+            // has finished — flipping mid-walk retroactively turns the
+            // already-recorded edge that arrived at the tile into a
+            // land <-> water edge, which is exactly the "rivers running
+            // along the coastline" artifact. Walk order is deterministic
+            // so this list is too.
+            var pendingLakes = new List<HexTile>();
+
             // Deterministic source iteration: raster order over the
             // tile array with a per-tile probability draw. Same seed
             // + same settings ⇒ identical source set.
@@ -96,8 +114,15 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
                 if (probability <= 0f) continue;
                 if (rng.NextFloat() >= probability) continue;
 
-                WalkDownhill(source, map, rng, edges, neighborBuffer, maxLength, lakeBiome);
+                WalkDownhill(source, map, rng, edges, neighborBuffer, maxLength, pendingLakes);
             }
+
+            // Deferred lake pass: flip the collected local minima to
+            // water, then drop every edge that now has a water endpoint.
+            // Pruning can shorten a river by its last edge or two; that
+            // is correct — the river simply ends at the lake shore
+            // instead of laying a channel across it.
+            ApplyLakes(pendingLakes, map, lakeBiome, edges);
 
             // Post-process: the walk records edges that share TILES
             // (chain L → M → R shares tile M between edges (L, M)
@@ -110,6 +135,50 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             AddCornerConnectors(edges, map, rng);
 
             map.SetRivers(edges);
+        }
+
+        // Flips every pending local-minimum tile to a lake, then prunes
+        // any river edge that now touches one. Runs once, after all
+        // walks, so no walk can observe a half-applied world.
+        //
+        // Skipped entirely when the buyer's biome roster has no coastal
+        // water biome (unlikely — Generate validates the roles) since
+        // there is nothing to flip the tile to; the minima simply stay
+        // land and the rivers that reached them just end there.
+        private static void ApplyLakes(
+            List<HexTile> pendingLakes,
+            WorldMap map,
+            BiomeDefinition lakeBiome,
+            HashSet<RiverEdge> edges)
+        {
+            if (lakeBiome == null || pendingLakes.Count == 0) return;
+
+            for (int i = 0; i < pendingLakes.Count; i++)
+            {
+                HexTile lake = pendingLakes[i];
+                if (lake.LandState == TileLandState.Water) continue;
+                lake.LandState = TileLandState.Water;
+                lake.Biome = lakeBiome;
+                lake.Feature = null;
+                lake.ElevationLevel = 0;
+            }
+
+            // Prune edges with a water endpoint. Collect first, remove
+            // second — mutating a HashSet while enumerating it throws.
+            // The result is independent of enumeration order, so no
+            // determinism concern here.
+            var doomed = new List<RiverEdge>();
+            foreach (RiverEdge e in edges)
+            {
+                if (!map.TryGetTile(e.Coord, out HexTile owner)
+                    || !map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile other)
+                    || owner.LandState == TileLandState.Water
+                    || other.LandState == TileLandState.Water)
+                {
+                    doomed.Add(e);
+                }
+            }
+            for (int i = 0; i < doomed.Count; i++) edges.Remove(doomed[i]);
         }
 
         // Post-processing pass. For each land tile T with exactly 2
@@ -209,7 +278,7 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             HashSet<RiverEdge> edges,
             List<(HexDirection dir, HexTile tile)> neighborBuffer,
             int maxLength,
-            BiomeDefinition lakeBiome)
+            List<HexTile> pendingLakes)
         {
             HexTile current = source;
             for (int step = 0; step < maxLength; step++)
@@ -258,17 +327,11 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
                         // the river meets the sea.
                         return;
                     }
-                    // True inland local minimum: flip to a lake tile
-                    // so the river terminates in water. Skipped when
-                    // the buyer roster has no coast biome (unlikely
-                    // — Generate validates roles).
-                    if (lakeBiome != null)
-                    {
-                        current.LandState = TileLandState.Water;
-                        current.Biome = lakeBiome;
-                        current.Feature = null;
-                        current.ElevationLevel = 0;
-                    }
+                    // True inland local minimum. Record the tile as a
+                    // pending lake; the actual flip happens after every
+                    // walk completes so it cannot corrupt edges already
+                    // recorded by this or any other walk.
+                    pendingLakes.Add(current);
                     return;
                 }
 

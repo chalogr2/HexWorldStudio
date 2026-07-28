@@ -242,6 +242,104 @@ namespace HexWorldStudio.Tests
             return false;
         }
 
+        // ---- Deferred lake flips --------------------------------
+
+        // All-land bowl: elevation rises with distance from a single
+        // interior tile, so that tile is the unique global minimum and
+        // every walk converges on it. There is no water anywhere, so
+        // the walk cannot terminate at a coast — it must terminate at
+        // the minimum and queue it as a pending lake.
+        //
+        // The ramp world used by the other tests is strictly monotone
+        // and therefore never produces a local minimum, which is why
+        // the mid-walk flip corruption went unnoticed: no existing test
+        // ever reached that branch.
+        private static HexCoord SeedBowlWorld(WorldMap map, BiomeDefinition land)
+        {
+            int centerCol = Width / 2;
+            int centerRow = Height / 2;
+            HexCoord center = HexCoordExtensions.FromOffsetOddR(centerCol, centerRow);
+
+            float maxDist = Mathf.Sqrt(centerCol * centerCol + centerRow * centerRow);
+            foreach (HexTile t in map.Tiles)
+            {
+                (int col, int row) = t.Coord.ToOffsetOddR();
+                float dc = col - centerCol;
+                float dr = row - centerRow;
+                float dist = Mathf.Sqrt(dc * dc + dr * dr);
+
+                t.LandState = TileLandState.Land;
+                t.Biome = land;
+                t.Elevation = 0.05f + (dist / maxDist) * 0.95f;
+                t.ElevationLevel = Mathf.Clamp(Mathf.RoundToInt(dist / maxDist * 5f), 0, 5);
+                t.Moisture = 0.8f;
+            }
+            return center;
+        }
+
+        [Test]
+        public void Execute_InlandLocalMinimum_BecomesLakeWithNoWaterEdges()
+        {
+            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
+            try
+            {
+                HexCoord center = SeedBowlWorld(ctx.Map, land);
+                new RiverStage().Execute(ctx);
+
+                Assert.That(ctx.Map.TryGetTile(center, out HexTile centerTile), Is.True);
+                Assert.That(centerTile.LandState, Is.EqualTo(TileLandState.Water),
+                    "The unique global minimum must be flipped to a lake.");
+                Assert.That(centerTile.Biome, Is.SameAs(coast),
+                    "Lake tiles take the roster's coastal-water biome.");
+
+                // The invariant the mid-walk flip used to break: the
+                // edge that arrived at the minimum was recorded while
+                // the tile was still land, and stayed in the set after
+                // the flip made it a shoreline edge.
+                foreach (RiverEdge e in ctx.Map.RiverEdges)
+                {
+                    ctx.Map.TryGetTile(e.Coord, out HexTile owner);
+                    ctx.Map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile other);
+                    Assert.That(owner.LandState, Is.EqualTo(TileLandState.Land),
+                        $"Edge {e} touches the lake at {owner.Coord}.");
+                    Assert.That(other.LandState, Is.EqualTo(TileLandState.Land),
+                        $"Edge {e} touches the lake at {other.Coord}.");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(land);
+                Object.DestroyImmediate(ocean);
+                Object.DestroyImmediate(coast);
+            }
+        }
+
+        [Test]
+        public void Execute_LakeFlips_AreDeterministic()
+        {
+            var (ctxA, landA, oceanA, coastA) = NewContext(riverDensity: 0.6f, seed: 0xB0A7uL);
+            var (ctxB, landB, oceanB, coastB) = NewContext(riverDensity: 0.6f, seed: 0xB0A7uL);
+            try
+            {
+                SeedBowlWorld(ctxA.Map, landA);
+                SeedBowlWorld(ctxB.Map, landB);
+
+                new RiverStage().Execute(ctxA);
+                new RiverStage().Execute(ctxB);
+
+                for (int i = 0; i < ctxA.Map.Tiles.Count; i++)
+                {
+                    Assert.That(ctxA.Map.Tiles[i].LandState, Is.EqualTo(ctxB.Map.Tiles[i].LandState),
+                        $"Lake flip diverged at tile index {i} — determinism contract broken.");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(landA); Object.DestroyImmediate(oceanA); Object.DestroyImmediate(coastA);
+                Object.DestroyImmediate(landB); Object.DestroyImmediate(oceanB); Object.DestroyImmediate(coastB);
+            }
+        }
+
         // ---- No self-duplication --------------------------------
 
         [Test]
