@@ -1,5 +1,6 @@
 using System;
 using HexWorldStudio.Coordinates;
+using HexWorldStudio.Data;
 using UnityEngine;
 
 namespace HexWorldStudio.Rendering
@@ -142,5 +143,38 @@ namespace HexWorldStudio.Rendering
             (int col, int row) = coord.ToOffsetOddR();
             return WorldPosition(col, row, elevationLevel, elevationStep);
         }
+
+        /// <summary>
+        /// World-space position of one of a tile's six corners, on the
+        /// <c>Y = 0</c> plane. Corner <c>index</c> matches the ring
+        /// vertex order <see cref="Build"/> produces: index <c>0</c> at
+        /// 90°, increasing counter-clockwise in 60° steps.
+        /// </summary>
+        /// <param name="coord">The owning tile.</param>
+        /// <param name="cornerIndex">Corner index; wrapped into <c>[0, 6)</c>.</param>
+        /// <remarks>
+        /// The three tiles meeting at a corner all resolve to the same
+        /// point through this method, which is what lets edge-based
+        /// geometry (rivers, borders, outlines) meet exactly.
+        /// </remarks>
+        public static Vector3 CornerPosition(HexCoord coord, int cornerIndex)
+        {
+            Vector3 center = WorldPosition(coord, 0, 0f);
+            int i = ((cornerIndex % 6) + 6) % 6;
+            float rad = (90f + i * 60f) * Mathf.Deg2Rad;
+            return new Vector3(
+                center.x + OuterRadius * Mathf.Cos(rad),
+                0f,
+                center.z + OuterRadius * Mathf.Sin(rad));
+        }
+
+        /// <summary>
+        /// World-space position of a <see cref="HexCorner"/>, on the
+        /// <c>Y = 0</c> plane. Convenience wrapper over
+        /// <see cref="CornerPosition(HexCoord, int)"/>.
+        /// </summary>
+        /// <param name="corner">The corner, in any naming.</param>
+        public static Vector3 CornerPosition(HexCorner corner) =>
+            CornerPosition(corner.Coord, corner.Index);
     }
 }

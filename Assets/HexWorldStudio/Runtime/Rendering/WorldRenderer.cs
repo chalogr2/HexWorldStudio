@@ -416,7 +416,14 @@ namespace HexWorldStudio.Rendering
         /// </remarks>
         internal static float ComputeTileY(HexTile tile, float oceanY, float coastRise, float landRise, float elevationStep)
         {
-            if (tile != null && tile.Biome != null && tile.Biome.IsWater)
+            // Lakes are water, but inland water: a mountain tarn sits in
+            // its basin at the surrounding terrace height, not at sea
+            // level. Pinning it to oceanY would punch a hole straight
+            // through the highlands, so lakes take the land formula and
+            // keep the ElevationLevel the hydrology pass left on them
+            // (ADR-0025).
+            bool isSeaWater = tile != null && tile.Biome != null && tile.Biome.IsWater && !tile.IsLake;
+            if (isSeaWater)
             {
                 return tile.Biome.IsCoastalWater
                     ? oceanY + coastRise

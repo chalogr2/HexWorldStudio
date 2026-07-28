@@ -51,8 +51,22 @@ namespace HexWorldStudio.Content
         /// wide navigable river.
         /// </summary>
         [Range(0.02f, 0.6f)]
-        [Tooltip("River strip width as a fraction of hex flat-to-flat width. Default 0.15 = Civ-style medium ribbon.")]
+        [Tooltip("River strip width as a fraction of hex flat-to-flat width. Default 0.15 = Civ-style medium ribbon. Used as the headwater width; see MaxWidthRelativeToHex.")]
         public float WidthRelativeToHex = 0.15f;
+
+        /// <summary>
+        /// Width of a fully-grown trunk river, as a fraction of the
+        /// hex's flat-to-flat width. The renderer tapers each river
+        /// from <see cref="WidthRelativeToHex"/> at its source up to
+        /// this at its mouth, scaled by
+        /// <see cref="RiverPath.StrahlerOrder"/>, so a river fed by
+        /// many tributaries reads visibly larger than a headwater
+        /// stream (ADR-0025). Set equal to
+        /// <see cref="WidthRelativeToHex"/> for uniform-width rivers.
+        /// </summary>
+        [Range(0.02f, 0.9f)]
+        [Tooltip("Width of a fully-grown trunk river. Rivers taper from WidthRelativeToHex at the source up to this at the mouth, based on Strahler order. Set equal to WidthRelativeToHex for uniform width.")]
+        public float MaxWidthRelativeToHex = 0.3f;
 
         /// <summary>
         /// Y offset above the tile's pivot where the river strip
@@ -76,5 +90,16 @@ namespace HexWorldStudio.Content
         [Tooltip("Base tint applied via the material's _BaseColor property (URP/Lit and the shipped FlowingWater shader both use this).")]
         [ColorUsage(showAlpha: true, hdr: false)]
         public Color BaseColor = new Color(0.35f, 0.55f, 0.85f, 0.9f);
+
+        /// <summary>
+        /// Fraction of a waterfall edge spent on the flat lip above the
+        /// drop, and again on the flat plunge pool below it (ADR-0025).
+        /// The remainder is the near-vertical face. <c>0.25</c> gives a
+        /// quarter lip, half fall, quarter pool. Lower values make the
+        /// drop longer and more gradual.
+        /// </summary>
+        [Range(0.05f, 0.45f)]
+        [Tooltip("Fraction of a waterfall edge spent on the flat lip above the drop and on the plunge pool below it. The rest is the vertical face.")]
+        public float WaterfallLipFraction = 0.25f;
     }
 }

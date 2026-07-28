@@ -1,55 +1,63 @@
 using System;
 using System.Collections.Generic;
 using HexWorldStudio.Content;
-using HexWorldStudio.Coordinates;
 using HexWorldStudio.Data;
 using UnityEngine;
 
 namespace HexWorldStudio.Rendering
 {
     /// <summary>
-    /// Default river renderer per ADR-0024. Reads
-    /// <see cref="WorldMap.RiverEdges"/> and emits a single
-    /// procedural strip mesh — one quad per river edge — under this
-    /// component's transform, textured by the assigned
-    /// <see cref="RiverStyleAsset"/>. Buyers who want a completely
-    /// custom river visual can disable this component and subscribe
-    /// to <see cref="RiversRebuilt"/> to draw their own.
+    /// Default river renderer per ADR-0025. Reads
+    /// <see cref="WorldMap.RiverPaths"/> and emits one continuous
+    /// mitered ribbon per river into a single shared mesh, textured by
+    /// the assigned <see cref="RiverStyleAsset"/>. Buyers who want a
+    /// completely custom river visual can disable this component and
+    /// subscribe to <see cref="RiversRebuilt"/> to draw their own.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Each river edge becomes a flat quad sitting on the shared
-    /// boundary between its two hex tiles. UVs are <b>U</b> across
-    /// the river (0 to 1 bank-to-bank) and <b>V</b> along the flow
-    /// (0 to 1 upstream-to-downstream), so any material whose
-    /// shader scrolls V produces animated flow — the shipped
-    /// <c>FlowingWater</c> shader is one such example, but any URP
-    /// Shader Graph water material works transparently.
+    /// <b>One ribbon per river, not one quad per edge.</b> Because
+    /// consecutive steps of a <see cref="RiverPath"/> share a corner,
+    /// the ribbon's cross-sections are mitered at each joint and the
+    /// segments meet exactly — no caps, no overlap tricks, no seams.
     /// </para>
     /// <para>
-    /// Junctions: because every vertex on the strip is computed as
-    /// a pure function of a hex-vertex world position, edges that
-    /// share a hex vertex naturally meet at the same world point.
-    /// Adjacent edges' widths diverge slightly at the shared point
-    /// (they're perpendicular to different flow axes), producing a
-    /// small visible seam at Y-junctions. A per-vertex-flow-map
-    /// upgrade lives in the Slice 17.1 deferred list — for v17.0
-    /// the seam reads as natural turbulence at most zoom levels.
+    /// <b>Height follows the terraces.</b> A channel step runs at the
+    /// render height of its terrace level; a waterfall step descends
+    /// from its <see cref="RiverStep.FromLevel"/> to its
+    /// <see cref="RiverStep.ToLevel"/> as a flat lip, a near-vertical
+    /// face, and a plunge pool. Because the generator guarantees
+    /// <c>Steps[i].ToLevel == Steps[i + 1].FromLevel</c>, consecutive
+    /// segments always agree on height at the corner they share.
     /// </para>
     /// <para>
-    /// Cylindrical wrap: wrap-crossing edges emit geometry that
-    /// extends past the canonical world's horizontal seam; the
-    /// <see cref="WorldWrapRenderer"/> clones this renderer's
-    /// GameObject along with everything else and stitches the two
-    /// sides together in the standard way.
+    /// <b>UVs</b> are <b>U</b> across the river and <b>V</b> along the
+    /// flow, accumulated monotonically from source to mouth — so a
+    /// shader that scrolls V animates the whole river coherently
+    /// downstream. The shipped <c>FlowingWater</c> shader is one such
+    /// example; any URP water material works.
+    /// </para>
+    /// <para>
+    /// <b>Width</b> tapers from <see cref="RiverStyleAsset.WidthRelativeToHex"/>
+    /// at the source to a share of
+    /// <see cref="RiverStyleAsset.MaxWidthRelativeToHex"/> at the
+    /// mouth, set by the path's <see cref="RiverPath.StrahlerOrder"/>,
+    /// so trunk rivers read larger than headwaters.
+    /// </para>
+    /// <para>
+    /// <b>Cylindrical wrap:</b> corner positions are unwrapped
+    /// relative to the previous corner, so a river crossing the seam
+    /// emits one continuous ribbon running off the edge of the
+    /// canonical world rather than a strip flung across its full
+    /// width. <see cref="WorldWrapRenderer"/> shows the far side.
     /// </para>
     /// </remarks>
     public sealed class RiverRenderer : MonoBehaviour
     {
-        [Tooltip("Visual style asset: material, width, surface offset. When null the renderer builds no geometry.")]
+        [Tooltip("Visual style asset: material, widths, surface offset. When null the renderer builds no geometry.")]
         [SerializeField] private RiverStyleAsset _style;
 
-        [Tooltip("Optional: matched WorldRenderer used to align river Y with the Civ-style stepped tile baseline. When null the renderer uses the settings echoed on this component.")]
+        [Tooltip("Optional: matched WorldRenderer used to align river Y with the Civ-style stepped tile baseline. When null the renderer falls back to the stepped-baseline defaults.")]
         [SerializeField] private WorldRenderer _worldRenderer;
 
         // Shader property id for the material's base color, matching
@@ -59,7 +67,7 @@ namespace HexWorldStudio.Rendering
         private Mesh _riverMesh;
         private GameObject _riverGameObject;
 
-        /// <summary>The style asset controlling material, width, and surface offset.</summary>
+        /// <summary>The style asset controlling material, widths, and surface offset.</summary>
         public RiverStyleAsset Style
         {
             get => _style;
@@ -67,18 +75,26 @@ namespace HexWorldStudio.Rendering
         }
 
         /// <summary>
+        /// The root GameObject holding the built river mesh, or
+        /// <c>null</c> when nothing is built. Exposed so
+        /// <see cref="WorldWrapRenderer"/> can mirror river geometry
+        /// even when this component lives on its own GameObject rather
+        /// than beside the <see cref="WorldRenderer"/>.
+        /// </summary>
+        public GameObject BuiltGeometry => _riverGameObject;
+
+        /// <summary>
         /// Fired after every successful <see cref="Render"/>. Passes
         /// the canonical river-edge collection so buyers can drive
         /// custom visualizations, gameplay overlays, or diagnostic
-        /// tooling. Fires even when the renderer produces no
-        /// geometry (empty roster, null style) so subscribers can
-        /// clear cleanly.
+        /// tooling. Fires even when the renderer produces no geometry
+        /// (empty roster, null style) so subscribers can clear cleanly.
         /// </summary>
         public event Action<IReadOnlyList<RiverEdge>> RiversRebuilt;
 
         /// <summary>
         /// Rebuilds the river geometry from the given map's
-        /// <see cref="WorldMap.RiverEdges"/>. Destroys any previous
+        /// <see cref="WorldMap.RiverPaths"/>. Destroys any previous
         /// geometry first so repeated calls are idempotent.
         /// </summary>
         /// <param name="map">The map to render rivers for. Must be non-null.</param>
@@ -88,15 +104,15 @@ namespace HexWorldStudio.Rendering
 
             Clear();
 
-            IReadOnlyList<RiverEdge> edges = map.RiverEdges;
-            if (_style == null || _style.Material == null || edges == null || edges.Count == 0)
+            IReadOnlyList<RiverPath> paths = map.RiverPaths;
+            if (_style == null || _style.Material == null || paths == null || paths.Count == 0)
             {
-                RiversRebuilt?.Invoke(edges ?? Array.Empty<RiverEdge>());
+                RiversRebuilt?.Invoke(map.RiverEdges ?? Array.Empty<RiverEdge>());
                 return;
             }
 
-            BuildRiverMesh(map, edges);
-            RiversRebuilt?.Invoke(edges);
+            BuildRiverMesh(map, paths);
+            RiversRebuilt?.Invoke(map.RiverEdges);
         }
 
         /// <summary>
@@ -120,124 +136,59 @@ namespace HexWorldStudio.Rendering
 
         private void OnDestroy() => Clear();
 
-        // Builds a triangulated strip per RiverEdge into a single
-        // shared Mesh: a rectangle along the shared hex edge (from
-        // one hex corner to the other) plus a small hexagon cap
-        // centered at each hex-corner endpoint. Adjacent river edges
-        // share hex corners (via the post-processing pass in
-        // RiverStage), so their hexagon caps are centered on the
-        // same point — the caps overlap perfectly and hide the
-        // orientation mismatch between adjacent rectangle short
-        // ends. UVs on the rectangle body follow U-across-V-along-
-        // flow so shader-graph water materials scroll cleanly.
-        private void BuildRiverMesh(WorldMap map, IReadOnlyList<RiverEdge> edges)
+        // One polyline sample: a point on the river's centre line, the
+        // half-width there, and the accumulated distance for V.
+        private struct Sample
         {
-            const int CapRingCount = 6;
-            const int VertsPerCap = 1 + CapRingCount;
-            const int VertsPerEdge = 4 + 2 * VertsPerCap;
-            const int TrisPerCap = CapRingCount;
-            const int IndicesPerEdge = 6 + 2 * TrisPerCap * 3;
+            public Vector3 Position;
+            public float HalfWidth;
+            public float Distance;
+        }
 
-            int quadCount = edges.Count;
-            var vertices  = new Vector3[quadCount * VertsPerEdge];
-            var uvs       = new Vector2[quadCount * VertsPerEdge];
-            var normals   = new Vector3[quadCount * VertsPerEdge];
-            var triangles = new int[quadCount * IndicesPerEdge];
-
-            float halfWidth = 0.5f * _style.WidthRelativeToHex * HexMesh.WidthFlatToFlat;
+        private void BuildRiverMesh(WorldMap map, IReadOnlyList<RiverPath> paths)
+        {
+            float oceanY = _worldRenderer != null ? _worldRenderer.OceanRenderHeight : 0f;
+            float landRise = _worldRenderer != null ? _worldRenderer.LandRiseAboveWater : 0.15f;
+            float stepY = _worldRenderer != null ? _worldRenderer.ElevationStep : 0.15f;
             float surfaceOffset = _style.SurfaceYOffset;
 
-            // Height model comes from the assigned WorldRenderer's
-            // stepped-baseline knobs. River Y = pivot(higher tile) +
-            // SurfaceYOffset. SurfaceYOffset represents the terrain-
-            // surface offset above the pivot (defaults to 0.2 for
-            // Kenney Hexagon Kit prefabs). Using the pivot instead
-            // of the full visible-bounds top keeps rivers on the
-            // terrain surface rather than on top of tree canopies
-            // or mountain peaks inside a feature prefab.
-            float oceanY   = _worldRenderer != null ? _worldRenderer.OceanRenderHeight : 0f;
-            float coastR   = _worldRenderer != null ? _worldRenderer.CoastRiseAboveOcean : 0.05f;
-            float landR    = _worldRenderer != null ? _worldRenderer.LandRiseAboveWater : 0.15f;
-            float stepY    = _worldRenderer != null ? _worldRenderer.ElevationStep : 0.15f;
+            float minHalf = 0.5f * _style.WidthRelativeToHex * HexMesh.WidthFlatToFlat;
+            float maxHalf = 0.5f * Mathf.Max(_style.WidthRelativeToHex, _style.MaxWidthRelativeToHex)
+                            * HexMesh.WidthFlatToFlat;
+            float lipFraction = Mathf.Clamp(_style.WaterfallLipFraction, 0.05f, 0.45f);
+            float worldWidth = map.Width * HexMesh.HorizontalSpacing;
 
-            for (int i = 0; i < quadCount; i++)
+            var vertices = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var normals = new List<Vector3>();
+            var triangles = new List<int>();
+            var samples = new List<Sample>();
+
+            for (int p = 0; p < paths.Count; p++)
             {
-                RiverEdge edge = edges[i];
-                HexCoord a = edge.Coord;
-                HexCoord bRaw = a.Neighbor(edge.Direction);
+                RiverPath path = paths[p];
 
-                map.TryGetTile(a, out HexTile tileA);
-                map.TryGetTile(bRaw, out HexTile tileB);
+                // Trunk rivers get wider. Order 1 stays at the minimum
+                // for its whole length, so headwaters read as streams.
+                float growth = Mathf.Clamp01((path.StrahlerOrder - 1) / 3f);
+                float mouthHalf = Mathf.Lerp(minHalf, maxHalf, growth);
 
-                Vector3 aCenter = HexMesh.WorldPosition(a, 0, 0f);
-                Vector3 bCenter = HexMesh.WorldPosition(bRaw, 0, 0f);
-
-                float yA = WorldRenderer.ComputeTileY(tileA, oceanY, coastR, landR, stepY);
-                float yB = WorldRenderer.ComputeTileY(tileB, oceanY, coastR, landR, stepY);
-                float y  = Mathf.Max(yA, yB) + surfaceOffset;
-
-                aCenter.y = 0f;
-                bCenter.y = 0f;
-
-                Vector3 mid       = (aCenter + bCenter) * 0.5f;
-                Vector3 diff      = bCenter - aCenter;
-                Vector3 flowDir   = new Vector3(-diff.z, 0f, diff.x).normalized;
-                Vector3 acrossDir = diff.normalized;
-
-                // Rectangle body: the strip runs along the shared
-                // hex edge from one hex corner (pStart) to the other
-                // (pEnd), with width extending halfWidth into each
-                // neighboring tile. Straight-sided rectangle back
-                // per the buyer request.
-                Vector3 pStart    = mid + flowDir * (HexMesh.OuterRadius * 0.5f);
-                Vector3 pEnd      = mid - flowDir * (HexMesh.OuterRadius * 0.5f);
-                Vector3 halfCross = acrossDir * halfWidth;
-
-                int v = i * VertsPerEdge;
-
-                Vector3 q0 = new Vector3(pStart.x + halfCross.x, y, pStart.z + halfCross.z);
-                Vector3 q1 = new Vector3(pStart.x - halfCross.x, y, pStart.z - halfCross.z);
-                Vector3 q2 = new Vector3(pEnd.x   + halfCross.x, y, pEnd.z   + halfCross.z);
-                Vector3 q3 = new Vector3(pEnd.x   - halfCross.x, y, pEnd.z   - halfCross.z);
-
-                vertices[v + 0] = q0; uvs[v + 0] = new Vector2(1f, 0f);
-                vertices[v + 1] = q1; uvs[v + 1] = new Vector2(0f, 0f);
-                vertices[v + 2] = q2; uvs[v + 2] = new Vector2(1f, 1f);
-                vertices[v + 3] = q3; uvs[v + 3] = new Vector2(0f, 1f);
-                normals[v + 0] = Vector3.up;
-                normals[v + 1] = Vector3.up;
-                normals[v + 2] = Vector3.up;
-                normals[v + 3] = Vector3.up;
-
-                int t = i * IndicesPerEdge;
-                triangles[t + 0] = v + 0;
-                triangles[t + 1] = v + 2;
-                triangles[t + 2] = v + 1;
-                triangles[t + 3] = v + 1;
-                triangles[t + 4] = v + 2;
-                triangles[t + 5] = v + 3;
-                t += 6;
-
-                // Hexagon caps centered at each hex-corner endpoint
-                // (pStart, pEnd). Radius = halfWidth so the cap
-                // covers the rectangle's short-side width. Adjacent
-                // river edges share hex corners (post-processing in
-                // RiverStage guarantees corner-connected chains), so
-                // their caps are centered on the same point and
-                // overlap perfectly — smoothing over the width-axis
-                // mismatch between adjacent rectangle short ends.
-                int capStart = v + 4;
-                t = BuildCornerCap(vertices, uvs, normals, triangles, capStart, t, pStart, y, halfWidth);
-                int capEnd = capStart + VertsPerCap;
-                t = BuildCornerCap(vertices, uvs, normals, triangles, capEnd, t, pEnd, y, halfWidth);
+                BuildPathSamples(path, map, samples, oceanY, landRise, stepY, surfaceOffset,
+                                 minHalf, mouthHalf, lipFraction, worldWidth);
+                EmitRibbon(samples, vertices, uvs, normals, triangles);
             }
 
+            if (triangles.Count == 0) return;
+
             _riverMesh = new Mesh { name = "HexWorldStudio.Rivers" };
-            if (vertices.Length > 65535) _riverMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-            _riverMesh.vertices  = vertices;
-            _riverMesh.uv        = uvs;
-            _riverMesh.normals   = normals;
-            _riverMesh.triangles = triangles;
+            if (vertices.Count > 65535)
+            {
+                _riverMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            }
+            _riverMesh.SetVertices(vertices);
+            _riverMesh.SetUVs(0, uvs);
+            _riverMesh.SetNormals(normals);
+            _riverMesh.SetTriangles(triangles, 0);
             _riverMesh.RecalculateBounds();
 
             _riverGameObject = new GameObject("Rivers");
@@ -261,40 +212,160 @@ namespace HexWorldStudio.Rendering
             }
         }
 
-        // Emits a hexagonal disc centered at `center` with radius
-        // `radius` into the vertex / index buffers, starting at
-        // `vertexStart` and `indexCursor`. Returns the new index
-        // cursor. Six triangles fan from the center vertex around
-        // six ring vertices at 60° increments.
-        private static int BuildCornerCap(
-            Vector3[] vertices, Vector2[] uvs, Vector3[] normals, int[] triangles,
-            int vertexStart, int indexCursor, Vector3 center, float y, float radius)
+        // Turns a path into a centre-line polyline. Channel steps
+        // contribute their end corner; waterfall steps contribute three
+        // extra samples (lip, top of face, bottom of face) so the drop
+        // renders as an actual fall rather than a gentle ramp.
+        private static void BuildPathSamples(
+            RiverPath path, WorldMap map, List<Sample> samples,
+            float oceanY, float landRise, float stepY, float surfaceOffset,
+            float minHalf, float mouthHalf, float lipFraction, float worldWidth)
         {
-            const int Ring = 6;
-            vertices[vertexStart]  = new Vector3(center.x, y, center.z);
-            uvs[vertexStart]       = new Vector2(0.5f, 0.5f);
-            normals[vertexStart]   = Vector3.up;
+            samples.Clear();
 
-            for (int r = 0; r < Ring; r++)
-            {
-                float angle = r * (Mathf.PI * 2f / Ring);
-                float cx = center.x + Mathf.Cos(angle) * radius;
-                float cz = center.z + Mathf.Sin(angle) * radius;
-                vertices[vertexStart + 1 + r] = new Vector3(cx, y, cz);
-                uvs[vertexStart + 1 + r]      = new Vector2(0.5f + Mathf.Cos(angle) * 0.5f,
-                                                            0.5f + Mathf.Sin(angle) * 0.5f);
-                normals[vertexStart + 1 + r]  = Vector3.up;
-            }
+            IReadOnlyList<RiverStep> steps = path.Steps;
+            float distance = 0f;
 
-            for (int r = 0; r < Ring; r++)
+            Vector3 previous = HexMesh.CornerPosition(steps[0].From);
+            AddSample(samples, new Vector3(previous.x, LevelY(steps[0].FromLevel, oceanY, landRise, stepY) + surfaceOffset, previous.z),
+                      minHalf, ref distance, first: true);
+
+            for (int i = 0; i < steps.Count; i++)
             {
-                int next = (r + 1) % Ring;
-                triangles[indexCursor++] = vertexStart;
-                triangles[indexCursor++] = vertexStart + 1 + r;
-                triangles[indexCursor++] = vertexStart + 1 + next;
+                RiverStep step = steps[i];
+
+                // Width grows along the river toward the mouth.
+                float tEnd = steps.Count == 1 ? 1f : (i + 1) / (float)steps.Count;
+                float halfEnd = Mathf.Lerp(minHalf, mouthHalf, tEnd);
+
+                Vector3 raw = HexMesh.CornerPosition(step.To);
+                Vector3 end = Unwrap(previous, raw, worldWidth);
+
+                float yFrom = LevelY(step.FromLevel, oceanY, landRise, stepY) + surfaceOffset;
+                float yTo = LevelY(step.ToLevel, oceanY, landRise, stepY) + surfaceOffset;
+
+                if (!step.IsWaterfall)
+                {
+                    AddSample(samples, new Vector3(end.x, yTo, end.z), halfEnd, ref distance, first: false);
+                }
+                else
+                {
+                    // Flat lip, near-vertical face, flat plunge pool.
+                    Vector3 lip = Vector3.Lerp(previous, end, lipFraction);
+                    Vector3 foot = Vector3.Lerp(previous, end, 1f - lipFraction);
+
+                    AddSample(samples, new Vector3(lip.x, yFrom, lip.z), halfEnd, ref distance, first: false);
+                    AddSample(samples, new Vector3(foot.x, yFrom, foot.z), halfEnd, ref distance, first: false);
+                    AddSample(samples, new Vector3(foot.x, yTo, foot.z), halfEnd, ref distance, first: false);
+                    AddSample(samples, new Vector3(end.x, yTo, end.z), halfEnd, ref distance, first: false);
+                }
+
+                previous = end;
             }
-            return indexCursor;
         }
+
+        private static void AddSample(List<Sample> samples, Vector3 position, float halfWidth,
+                                      ref float distance, bool first)
+        {
+            if (!first && samples.Count > 0)
+            {
+                distance += Vector3.Distance(samples[samples.Count - 1].Position, position);
+            }
+            samples.Add(new Sample { Position = position, HalfWidth = halfWidth, Distance = distance });
+        }
+
+        private static float LevelY(int level, float oceanY, float landRise, float stepY) =>
+            oceanY + landRise + level * stepY;
+
+        // Chooses the representation of `raw` closest to `reference`
+        // along X. Corner coordinates are canonicalized to the
+        // lex-smallest of their three tiles, so two adjacent corners
+        // straddling the wrap seam can name tiles a full map apart;
+        // without this the ribbon would stretch across the whole world.
+        private static Vector3 Unwrap(Vector3 reference, Vector3 raw, float worldWidth)
+        {
+            if (worldWidth <= 0f) return raw;
+            float half = worldWidth * 0.5f;
+            float x = raw.x;
+            while (x - reference.x > half) x -= worldWidth;
+            while (reference.x - x > half) x += worldWidth;
+            return new Vector3(x, raw.y, raw.z);
+        }
+
+        // Emits a mitered triangle strip through the sample polyline.
+        private static void EmitRibbon(
+            List<Sample> samples, List<Vector3> vertices, List<Vector2> uvs,
+            List<Vector3> normals, List<int> triangles)
+        {
+            int count = samples.Count;
+            if (count < 2) return;
+
+            float totalLength = samples[count - 1].Distance;
+            if (totalLength <= 0f) totalLength = 1f;
+
+            int baseIndex = vertices.Count;
+
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 position = samples[i].Position;
+
+                // Flat-plane tangents: the ribbon is mitered in XZ, so
+                // a vertical waterfall face keeps its full width.
+                Vector3 incoming = i > 0 ? Flat(position - samples[i - 1].Position) : Vector3.zero;
+                Vector3 outgoing = i < count - 1 ? Flat(samples[i + 1].Position - position) : Vector3.zero;
+
+                Vector3 direction;
+                if (incoming.sqrMagnitude < 1e-10f) direction = outgoing;
+                else if (outgoing.sqrMagnitude < 1e-10f) direction = incoming;
+                else direction = (incoming.normalized + outgoing.normalized);
+
+                if (direction.sqrMagnitude < 1e-10f)
+                {
+                    // A pure vertical drop sample, or a 180-degree
+                    // reversal: reuse whichever tangent is available.
+                    direction = incoming.sqrMagnitude > 1e-10f ? incoming : Vector3.forward;
+                }
+                direction.Normalize();
+
+                Vector3 normal = new Vector3(-direction.z, 0f, direction.x);
+
+                // Miter compensation: at a bend, the cross-section must
+                // widen by 1 / cos(half-angle) for the outer edges of
+                // adjacent segments to stay parallel. Clamped so a
+                // hairpin cannot produce a spike.
+                float miter = 1f;
+                if (incoming.sqrMagnitude > 1e-10f && outgoing.sqrMagnitude > 1e-10f)
+                {
+                    Vector3 inNormal = new Vector3(-incoming.normalized.z, 0f, incoming.normalized.x);
+                    float cosHalf = Vector3.Dot(normal, inNormal);
+                    miter = 1f / Mathf.Max(0.4f, Mathf.Abs(cosHalf));
+                }
+
+                Vector3 offset = normal * (samples[i].HalfWidth * miter);
+                float v = samples[i].Distance / totalLength;
+
+                vertices.Add(position + offset);
+                uvs.Add(new Vector2(1f, v));
+                normals.Add(Vector3.up);
+
+                vertices.Add(position - offset);
+                uvs.Add(new Vector2(0f, v));
+                normals.Add(Vector3.up);
+            }
+
+            for (int i = 0; i < count - 1; i++)
+            {
+                int a = baseIndex + i * 2;
+                int b = a + 1;
+                int c = a + 2;
+                int d = a + 3;
+
+                triangles.Add(a); triangles.Add(c); triangles.Add(b);
+                triangles.Add(b); triangles.Add(c); triangles.Add(d);
+            }
+        }
+
+        private static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
 
         private static void DestroySafely(UnityEngine.Object obj)
         {

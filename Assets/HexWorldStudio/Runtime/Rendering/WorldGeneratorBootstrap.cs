@@ -196,6 +196,10 @@ namespace HexWorldStudio.Rendering
             if (_wrapRenderer != null)
             {
                 _wrapRenderer.WorldTileWidth = LatestMap.Width;
+                // Runs after the river render above, so the geometry to
+                // mirror already exists. Harmless when the two
+                // renderers share a GameObject.
+                if (_wrapRenderer.RiverRenderer == null) _wrapRenderer.RiverRenderer = _riverRenderer;
                 _wrapRenderer.Refresh();
             }
 

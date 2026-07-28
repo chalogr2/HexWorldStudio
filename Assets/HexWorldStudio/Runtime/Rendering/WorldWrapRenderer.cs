@@ -36,6 +36,9 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Map width in tiles, used to compute the wrap offset in world units. Auto-set by Bootstrap on each Render.")]
         [SerializeField] private int _worldTileWidth;
 
+        [Tooltip("Optional river renderer to mirror alongside the tiles. Only needed when the RiverRenderer lives on a different GameObject than the WorldRenderer — when they share one, its geometry is already a child of the mirrored root.")]
+        [SerializeField] private RiverRenderer _riverRenderer;
+
         private GameObject _leftCopy;
         private GameObject _rightCopy;
 
@@ -51,6 +54,24 @@ namespace HexWorldStudio.Rendering
         {
             get => _renderer;
             set => _renderer = value;
+        }
+
+        /// <summary>
+        /// Optional river renderer whose built geometry is mirrored
+        /// alongside the tiles.
+        /// </summary>
+        /// <remarks>
+        /// Only required when the <see cref="RiverRenderer"/> sits on a
+        /// different GameObject than the <see cref="WorldRenderer"/>.
+        /// When they share one — as the QuickStart scene has them — the
+        /// river mesh is already a child of the mirrored root and is
+        /// picked up automatically; assigning it here as well is
+        /// harmless, the duplicate is detected and skipped.
+        /// </remarks>
+        public RiverRenderer RiverRenderer
+        {
+            get => _riverRenderer;
+            set => _riverRenderer = value;
         }
 
         /// <summary>World-space distance from the canonical world to a wrap copy.</summary>
@@ -76,6 +97,18 @@ namespace HexWorldStudio.Rendering
             for (int i = 0; i < sourceCount; i++)
             {
                 sourceChildren.Add(sourceRoot.GetChild(i));
+            }
+
+            // River geometry lives under the RiverRenderer's transform.
+            // That is usually the same GameObject as the WorldRenderer,
+            // in which case the loop above already captured it — but
+            // the component is free to live elsewhere, and then the
+            // rivers would silently vanish from both wrap copies. Add
+            // it explicitly, guarding against capturing it twice.
+            if (_riverRenderer != null && _riverRenderer.BuiltGeometry != null)
+            {
+                Transform riverRoot = _riverRenderer.BuiltGeometry.transform;
+                if (!sourceChildren.Contains(riverRoot)) sourceChildren.Add(riverRoot);
             }
 
             float dx = WorldWidthInWorldUnits;
