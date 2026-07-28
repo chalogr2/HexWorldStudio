@@ -773,3 +773,93 @@ Lake-on-local-minimum is subtle but Civ-realistic: rivers terminating in the mid
 - **Post-Slice-17 fix (2026-07-08):** two-part change to match Civ V / VI river topology (rivers wind along hex edges, consecutive edges share a hex vertex).
   - **Algorithm:** `RiverStage` gets an `AddCornerConnectors` post-processing pass. After the tile-walk records edges as before, each land tile with exactly 2 incident edges whose directions aren't already adjacent (share a corner) gets bridging hex edges inserted along the shortest arc of its own boundary. Difference-2 tiles get 1 intermediate edge; difference-3 (opposite-side) tiles get 2 intermediates and pick the arc via the forked RNG (deterministic per seed). Intermediates that would cross a land ↔ water edge are skipped (preserving the "no rivers on coastlines" invariant from the earlier fix). Chains are now vertex-connected by construction.
   - **Renderer:** `RiverRenderer` reverts to a rectangle strip along each shared edge (buyer requested "again squares") plus a small hexagon cap centered at each hex-corner endpoint. Cap radius equals the rectangle half-width; adjacent river edges' caps are centered on the SAME hex vertex so they overlap perfectly, hiding the width-axis mismatch between adjacent rectangle short ends. Per-edge cost: 18 vertices (4 body + 2 × 7 cap) and 14 triangles (2 body + 2 × 6 cap). For typical maps with ~100 river edges post-connectors, total mesh cost is well under 2k triangles — negligible.
+
+---
+
+## ADR-0025 — Corner-network rivers: terrace channels, waterfall crossings, and fill-derived lakes
+
+**Date:** 2026-07-28
+**Status:** Accepted
+**Supersedes:** the generation and rendering halves of ADR-0024. The `RiverEdge` data contract — canonical form, `WorldMap.RiverEdges`, `HasRiverAt`, `CountRiverEdgesAround` — survives unchanged.
+
+**Context:**
+
+ADR-0024 shipped rivers as a tile-based downhill walk recording hex edges, plus an `AddCornerConnectors` pass bridging non-adjacent edges, plus a quad-per-edge renderer. Visual iteration surfaced seven defects, and they shared one root cause: **generation ran on tiles while the representation was edges, and connectivity was repaired afterwards.** The connector pass was a patch on a modelling mismatch. It skipped every confluence — merging is a termination condition, so merge tiles carry three incident edges while the pass only handled two — and that was the second leak found, not the last.
+
+Two requirements also landed after ADR-0024 was written:
+
+1. Rivers must flow **into** the coast, never **along** it.
+2. A river channel must lie between two tiles of the **same** `ElevationLevel`. A level boundary may only be **crossed**, as a waterfall — never run along as "a line between a higher and a lower tile".
+
+**Decision:**
+
+Model a river as a **path through hex corners**, not a set of hex edges.
+
+Three hexes meet at every corner and every corner has exactly three neighbouring corners, so a step from one corner to an adjacent one traverses **exactly one hex edge**. Corner-to-corner adjacency is therefore the atom of the walk, and edge-chain connectivity is true by construction. `AddCornerConnectors` is deleted, not fixed.
+
+*Why the waterfall must consume exactly one edge — this is forced by the topology, not chosen.* Let corner `V` be shared by tiles `{A, B, C}` and adjacent corner `V'` by `{A, B, D}`; the edge traversed is exactly `(A, B)`, the two tiles common to both. If the river arrives at `V'` along a valid channel then `A.Level == B.Level == L`. The two onward edges at `V'` are `(A, D)` and `(B, D)`; for either to be a same-level channel we would need `D.Level == L`, which keeps us on terrace `L`. **There is no way to pivot at a single corner from a level-`L` channel to a level-`L-1` channel.** Descending a terrace therefore *requires* traversing one level-mismatched edge, and that traversal is the waterfall. After it the river lands at `V'' = {A, D, X}` and resumes on `(D, X)` when `X.Level == D.Level`.
+
+Step legality from corner `V` to adjacent corner `V'` across edge `E`:
+
+| Rule | Condition |
+|---|---|
+| **Land** | Both tiles flanking `E` are land — no river edge ever lies on a shoreline. |
+| **Descent** | `V'` is strictly lower than `V` on the depression-filled continuous field. |
+| **Channel or fall** | Either the two tiles flanking `E` share an `ElevationLevel` (channel), or they differ by at most `MaxWaterfallDrop` **and** the previous step was a channel (single-edge waterfall). Consecutive falls forbidden. |
+| **Continuity** | The step's `FromLevel` equals the previous step's `ToLevel`, so the water surface never teleports between terraces. |
+
+**Termination:** the walk stops the moment it arrives at a corner touching any water tile. This is the single rule that ends coastline-hugging — a second step can never be taken while adjacent to water, so a river physically cannot run parallel to a shore. Combined with the Land rule, the mouth corner touches water while no edge lies on the shoreline.
+
+**Two elevation fields, two jobs.** The continuous filled field drives *direction* (discrete levels are flat across a terrace and cannot order corners within one). The discrete `ElevationLevel` drives *legality*, because it is the terraced structure the player actually sees.
+
+**Depression filling** (`Runtime/Generation/Hydrology/DepressionFill.cs`, priority flood, `O(n log n)`) runs first on a scratch copy — `HexTile.Elevation` is never mutated. Outlets are all water tiles plus the polar rows. Filling raises to just *above* the spill level rather than level with it: a plain `max()` leaves basins perfectly flat, and a walk requiring strict descent cannot cross a flat region at all, so rivers would strand inside the very depressions the fill exists to remove.
+
+**Lakes are derived from the filled basins**, before any walking — a land tile the fill had to raise by more than `LakeDepthThreshold` is genuinely submerged. They come out contiguous rather than as single-tile holes, rivers terminate at them naturally, and the ADR-0024 failure mode (flipping a tile mid-walk, retroactively turning an already-recorded edge into a shoreline edge) cannot recur. `HexTile.IsLake` distinguishes them from sea so the renderer can put a mountain tarn at its terrace height instead of at sea level.
+
+**Public data is additive.** New: `HexCorner` (canonical hex-vertex identity, in `Data` because it is wrap-aware like `RiverEdge`), `RiverStep` / `RiverPath`, and `WorldMap.RiverPaths` — the directed, ordered view carrying terrace levels and Strahler order. `RiverEdges` keeps its exact prior contract.
+
+**Rendering** is one mitered ribbon per path: cross-sections mitered at shared corners so segments meet exactly (no caps), height taken from terrace levels so consecutive segments agree by the continuity invariant, `V` accumulated monotonically source-to-mouth so a scrolling shader animates the whole river coherently, width tapered by Strahler order, and waterfalls emitted as lip / vertical face / plunge pool. Corner positions are unwrapped against the previous corner — corners canonicalize to the lex-smallest of their three tiles, so two adjacent corners straddling the seam can name tiles a full map apart.
+
+**Alternatives considered:**
+
+- *Fix `AddCornerConnectors` to handle 3-incident junctions.* Patches the symptom. The pass exists only because generation and representation disagree; junctions were the second leak found, not the last.
+- *Flow accumulation on the tile network, thresholded into rivers.* The standard terrain-tool approach and it yields excellent dendritic networks — but it produces tile-*centre* flow, and converting that to edges reintroduces exactly the corner-connectivity problem being eliminated. The corner network gives the same dendritic structure natively.
+- *Allow multi-edge waterfall runs down a cliff.* Rejected by the requirement, and it looks wrong — a river zig-zagging along a cliff face reads as a bug.
+- *Keep lakes on stranded walks (ADR-0024 behaviour).* Rejected: it is what corrupted edges, and it produced single-tile holes at ocean height in the middle of highlands.
+
+**Reasoning:**
+
+The corner formulation makes the property the user kept asking for — "go from a corner of a hex to an adjacent corner" — structural rather than repaired. Every defect class that iteration surfaced (disconnected tips, gaps at junctions, coastline hugging, stair-stepped heights, incoherent flow direction) traces to the tile/edge mismatch, and all of them close at once.
+
+The terrace constraint is also what makes rivers *look* deliberate. Channels run through plateau interiors and drop at plateau boundaries, which is precisely the terraced hydrology of Civ VI. Constraining rivers to same-level seams turned out to cost far less than feared: measured on 60×40 worlds, 97% of land corners have at least one channel available.
+
+**Consequences and measured tuning:**
+
+The terrace rule is a hard filter, so some walks strand. Mitigated by depression filling, depth-first search with backtracking rather than greedy descent, keeping the deepest branch when no branch reaches the sea, and dropping anything under `MinRiverLength`. About 20% of rivers end inland; a river that runs a long way and peters out is a real feature of real terrain.
+
+Two defaults were retuned on measured evidence rather than taste, by running the real generator over six seeds at 60×40:
+
+- **`RiverSourceMinElevation` 4 → 3.** The meaning changed from gating one source *tile* to gating the lowest of the *three tiles at a corner*. At 4 only ~6% of land corners qualify and maps averaged **1.5 rivers**; at 3 they average **8.8 rivers over 60 edges**, with confluences forming (Strahler 2). This is the density the old default was aiming at.
+- **`LakeDepthThreshold` 0.02 → 0.08.** The old value gave ~21 lake bodies of ~3 tiles each, which reads as speckle; the new one gives ~3.5 bodies of ~4 tiles, which reads as water.
+
+River quality is now sensitive to terrace quality: speckled `ElevationLevel` output would mean short same-level seams. The quantization stage's median smoothing already produces contiguous plateaus, so this works in our favour — but if a future map type breaks that, the fix is a `TerraceCohesion` knob mirroring `BiomeCohesion`. Noted here so it is not rediscovered.
+
+Determinism improved as a side effect. The deleted connector pass drew from the RNG while iterating a `Dictionary` seeded from a `HashSet`; BCL enumeration order is unspecified, so byte-identical output was only guaranteed within one runtime — a live hazard given Unity has shipped both Mono and CoreCLR backends. Sources are now enumerated as tiles in raster order × corner index, taking only corners the tile canonically owns, and no hash-ordered collection is read while drawing from the stream.
+
+**Implementation note:**
+
+- `HexCorner` lives in `HexWorldStudio.Data`, not `Coordinates`: every method takes a `mapWidth` and resolves wrap, exactly as `RiverEdge` does. `HexCoord` stays wrap-agnostic.
+- The corner-index to neighbour-direction mapping is written as explicit tables rather than the equivalent modular closed forms. It is the one thing in the subsystem that has to be obviously right.
+- Unity's scripting runtime targets netstandard2.1, which predates `System.Collections.Generic.PriorityQueue`, so the fill's binary min-heap is hand-rolled. Heap ties break on tile index, which is what makes the result byte-identical rather than merely repeatable.
+- `WorldWrapRenderer` gained an explicit `RiverRenderer` reference. River geometry was previously mirrored only because the two components happen to share a GameObject in `QuickStartScene` — and `RiverRenderer` has a `WorldRenderer` slot that openly invites separating them.
+- New settings: `MinRiverLength` (3), `MaxWaterfallDrop` (1), `LakeDepthThreshold` (0.08). 16-arg primary ctor; the ADR-0024 13-arg ctor delegates with defaults so every existing call site compiles unchanged.
+
+**Verification note:**
+
+The Unity editor cannot run headless while it is open, so the coordinate, data, content, and generation layers were compiled and executed standalone against a small `UnityEngine` shim that stubs the handful of symbols they use. The harness compiles the real source files in place rather than copies, so it cannot drift from what Unity builds. Every invariant in this ADR — corner-connectivity, no shoreline edges, channels on one terrace, no consecutive waterfalls, level continuity, no interior corner touching water, determinism — was executed over six seeds before the code was committed, and the density figures above come from that harness rather than from estimation. It also caught two real bugs that reading would not have: a namespace error in `HexCorner`, and the walk discarding every river that failed to reach the sea.
+
+**Deferred:**
+
+- Per-step Strahler order (currently one order per path, with the renderer tapering width toward it). Exact per-segment width needs an extra int per step; revisit if the taper reads wrong.
+- Navigable / non-navigable dual representation (ADR-0006) still deferred to Slice 17.2.
+- PlayMode tests for the built river mesh; EditMode covers the geometry contracts it is built from.

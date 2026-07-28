@@ -97,9 +97,12 @@ WorldGenerationSettings (seed, dimensions, preset, content refs)
         │              per ADR-0022; no-op when Resources roster
         │              empty or ResourceDensity = 0
         ▼
-[6e] RiverStage — moisture-weighted downhill walk from high-elevation
-        │              land tiles, edge-based `RiverEdge` set stored on
-        │              `WorldMap.RiverEdges` (ADR-0024). Opt-out when
+[6e] RiverStage — depression-fill the elevation field, derive lakes
+        │              from the filled basins, then walk rivers down the
+        │              hex-CORNER graph: channels along a terrace,
+        │              single-edge waterfalls across terrace boundaries
+        │              (ADR-0025). Writes `WorldMap.RiverEdges` and the
+        │              ordered `WorldMap.RiverPaths`. Opt-out when
         │              RiverDensity = 0. Navigable / non-navigable
         │              dual representation deferred to Slice 17.2.
         ▼
@@ -132,7 +135,7 @@ Stages are internal types implementing a small `IGenerationStage` interface. The
 
 **Dual input provider** (ADR-0018): the demo input layer ships two `ICameraInput` implementations and a runtime installer that picks the right one. `Runtime/Input/LegacyUnityInputProvider.cs` reads `UnityEngine.Input`, with every call site wrapped in `#if ENABLE_LEGACY_INPUT_MANAGER` so it stubs out cleanly under new-only projects instead of throwing `InvalidOperationException`. `Runtime/Input/InputSystem/` is a separate asmdef (`HexWorldStudio.Runtime.InputSystem`) with `defineConstraints: ["ENABLE_INPUT_SYSTEM"]` and a hard reference to `Unity.InputSystem`; it carries `InputSystemInputProvider.cs` (mirrors the legacy provider's semantics on top of `Keyboard.current` / `Mouse.current`) and `InputSystemBootstrap.cs` (a tiny `[RuntimeInitializeOnLoadMethod]` / `[InitializeOnLoadMethod]` that registers a factory on `CameraInputInstaller.InputSystemFactory`). `Runtime/Input/CameraInputInstaller.cs` is a `MonoBehaviour` on the `QuickStartScene`'s camera GameObject; on `Awake` it calls the registered factory if one is present (new system path) and falls back to `LegacyUnityInputProvider` under `#if ENABLE_LEGACY_INPUT_MANAGER`. The static-delegate hook is the conventional Unity workaround for the cross-asmdef-reference problem the InputSystem-only sibling asmdef creates. `CivCameraController` keeps reading through `ICameraInput` via `GetComponent<ICameraInput>()` — no controller change. Net effect: the QuickStart scene plays under any of Unity's three `Active Input Handling` configurations (Legacy, New, Both) without buyers touching Player Settings.
 
-**Edge-based rivers** (ADR-0024): `RiverStage` runs tenth in the pipeline (after `ResourcePlacementStage`) and populates `WorldMap.RiverEdges` — a public `IReadOnlyList<RiverEdge>` where each `RiverEdge` is a canonical `(HexCoord Coord, HexDirection Direction)` pair naming an edge between two neighboring hexes. Canonical form: lex-smaller endpoint owns, direction points toward the other; both `(A, A→B)` and `(B, B→A)` naming collapse to the same value via `RiverEdge.Canonicalize(owner, direction, mapWidth)`. Source selection: moisture-weighted probability draw over land tiles above `RiverSourceMinElevation`. Downhill walk: strict-lower neighbor with RNG tie-break, terminates on water / merge / safety cap; local land minima flip to Coast lake tiles. Opt-out via `RiverDensity = 0`. Buyer query surface on `WorldMap`: `HasRiverAt(coord, dir)` accepts either endpoint naming; `CountRiverEdgesAround(coord)` returns 0..6 for fertility scoring. `RiverRenderer` MonoBehaviour reads `RiverEdges` and emits a single procedural quad-per-edge mesh under its transform, textured by the assigned `RiverStyleAsset` (Material + WidthRelativeToHex + SurfaceYOffset + BaseColor). UVs follow the standard `U-across-V-along-flow` convention so any URP water material scrolls cleanly; the shipped `Content/RiverStyles/FlowingWater.shader` demonstrates the `uv.y += _Time.y * _FlowSpeed` idiom. `RiversRebuilt` event lets buyers subscribe for custom visualizations. Cylindrical wrap works transparently — the wrap renderer clones the Rivers child along with tiles.
+**Corner-network rivers** (ADR-0025, superseding ADR-0024's generation and rendering halves): `RiverStage` runs tenth in the pipeline. It depression-fills the elevation field (`Generation/Hydrology/DepressionFill.cs`, priority flood on a scratch copy), derives lakes from the filled basins (`HexTile.IsLake`), then walks rivers down the hex-**corner** graph. Because three hexes meet at every corner and a step between adjacent corners traverses exactly one hex edge, river chains are corner-connected by construction — the ADR-0024 tile walk plus `AddCornerConnectors` repair pass is deleted. A channel runs only between two tiles of equal `ElevationLevel`; a terrace boundary is crossed by a single-edge waterfall, never run along, and never twice in a row. The walk stops on reaching a corner touching water, so rivers meet the sea head-on rather than running along the shore. Output is `WorldMap.RiverEdges` (unchanged ADR-0024 contract) plus the ordered, directed `WorldMap.RiverPaths`, whose `RiverStep`s carry both corners, the traversed edge, the terrace levels entering and leaving, and a waterfall flag, with `StrahlerOrder` per path. `RiverRenderer` builds one mitered ribbon per path — segments meet exactly at shared corners, height follows terrace levels, `V` accumulates source-to-mouth so flow animates coherently, width tapers by Strahler order, and waterfalls render as lip / face / plunge pool. `RiverStyleAsset` carries Material, the width range, SurfaceYOffset, BaseColor, and WaterfallLipFraction. `RiversRebuilt` still lets buyers draw their own. Wrap is handled by unwrapping corner positions against the previous corner and by `WorldWrapRenderer`'s explicit `RiverRenderer` reference.
 
 **Resource render modes** (ADR-0023): `ResourceDefinition` exposes a `ReplaceTile` boolean. When off (default), the resource's `Prefab` instantiates as a child of the tile root positioned at the visible top of the underlying biome / feature visual (renderer caches the per-source-prefab surface Y once and reuses it across every tile sharing that source). When on, the renderer looks up `(tile.Biome, tile.Feature)` in the resource's auto-synced `ReplacementPrefabs` list and instantiates that entry's prefab as the tile's sole visual — no biome / feature prefab is instantiated alongside. The list's entries are auto-populated from `AllowedBiomes × AllowedFeatures` via the `ResourceDefinitionEditor` custom inspector; existing prefab assignments are preserved across resyncs by `(Biome, Feature)` key match. No-prefab combos fall back to the default add-on-top behavior so buyers can iterate without breaking the demo.
 
@@ -176,7 +179,22 @@ Wrap is enforced inside `WorldMap`. The safe lookup API is `bool TryGetTile(HexC
 
 ## River representation
 
-**v1 (Slice 17):** Rivers are edge-based only, stored on `WorldMap.RiverEdges` as a canonical `IReadOnlyList<RiverEdge>` per ADR-0024. Each edge is a `(HexCoord Coord, HexDirection Direction)` pair naming the seam between two neighboring hexes; canonical form (lex-smaller endpoint owns, direction points at the other) makes deduplication trivial and lookups direction-agnostic. This covers the Civ V / VI style river network — rivers separate tiles into banks and provide gameplay adjacency bonuses without ever occupying a tile's center. The default `RiverRenderer` emits one procedural strip quad per edge; buyers who want richer visuals swap the material or subscribe to `RiversRebuilt` and render their own.
+**v1 (Slice 17.3, ADR-0025):** Rivers are generated as **paths through hex corners** and stored in two complementary views.
+
+- `WorldMap.RiverEdges` — the unordered canonical `IReadOnlyList<RiverEdge>` from ADR-0024, unchanged. Each edge is a `(HexCoord, HexDirection)` pair naming the seam between two neighboring hexes; canonical form (lex-smaller endpoint owns) makes dedup trivial and `HasRiverAt` direction-agnostic. Use it for adjacency questions.
+- `WorldMap.RiverPaths` — the ordered, directed view. One `RiverPath` per river, a sequence of `RiverStep`s from source to mouth carrying the two corners, the traversed edge, the terrace levels entering and leaving, and whether the step is a waterfall. Plus `StrahlerOrder` and `ReachesWater`. Use it when direction matters.
+
+Why corners: three hexes meet at every corner and every corner has exactly three neighbours, so **a step between adjacent corners traverses exactly one hex edge**. A river expressed as a corner sequence is edge-connected by construction — no bridging pass, and confluences are just shared corners. This replaced ADR-0024's tile walk plus `AddCornerConnectors` repair pass, which skipped every confluence.
+
+`HexCorner` (in `Runtime/Data/`, wrap-aware like `RiverEdge`) is the canonical vertex identity: the three possible `(tile, index)` namings collapse to the lex-smallest owning tile.
+
+Step legality — all four must hold: both tiles flanking the edge are **land** (so no river edge ever lies on a shoreline); the destination corner is strictly lower on the **depression-filled** continuous field; the edge is either a **channel** between two tiles of equal `ElevationLevel` or a single-edge **waterfall** crossing a terrace boundary within `MaxWaterfallDrop` and not following another waterfall; and terrace levels are **continuous** with the previous step. The walk terminates the instant it reaches a corner touching water — which is what keeps rivers from running *along* a coastline, since a second step can never be taken while adjacent to one.
+
+Two elevation fields do two jobs: the filled continuous field drives direction (discrete levels are flat across a terrace), the discrete `ElevationLevel` drives legality (it is the terracing the player sees).
+
+`Runtime/Generation/Hydrology/DepressionFill.cs` conditions the field first — priority flood on a scratch copy, raising to just above the spill level so filled basins are not perfectly flat. Lakes are then derived from the filled basins (`HexTile.IsLake`), before any walking, so they are contiguous and rivers terminate at them naturally.
+
+The default `RiverRenderer` emits one mitered ribbon per path; buyers who want richer visuals swap the material or subscribe to `RiversRebuilt` and render their own.
 
 **Deferred to Slice 17.2 (dual representation per ADR-0006):**
 
@@ -198,6 +216,8 @@ Runtime/
     WorldMap.cs                 ← pure-data root container (class); river-edge storage + query API
     HexTile.cs                  ← per-tile class
     RiverEdge.cs                ← public struct: canonical (Coord, Direction) river segment (ADR-0024)
+    HexCorner.cs                ← public struct: canonical hex-vertex identity, wrap-aware (ADR-0025)
+    RiverPath.cs                ← public RiverStep + RiverPath: ordered source-to-mouth river view (ADR-0025)
     WorldMapSerialization.cs    ← JSON / binary IO (deferred)
   Content/
     BiomeDefinition.cs          ← ScriptableObject
@@ -217,9 +237,11 @@ Runtime/
         ClimateStage.cs
         BiomeAssignmentStage.cs
         ResourcePlacementStage.cs
-        RiverStage.cs             ← moisture-weighted downhill walk; writes WorldMap.RiverEdges (ADR-0024)
+        RiverStage.cs             ← corner-network walk + lakes; writes RiverEdges + RiverPaths (ADR-0025)
         StartingPositionStage.cs
         PostProcessStage.cs
+    Hydrology/
+      DepressionFill.cs         ← internal priority-flood pit removal (ADR-0025)
     Rng/
       RngService.cs             ← deterministic seeded RNG
       NoiseSources.cs           ← vendored Perlin, Simplex, Worley
@@ -286,7 +308,9 @@ ThirdParty/
 | `HexCoord` | Runtime/Coordinates | Immutable axial coordinate struct with cube/offset conversions and equality. |
 | `WorldMap` | Runtime/Data | Class. Root container: dimensions, tiles, river network, seed, settings echo, schema version. Mutability contract is documentation-only. |
 | `HexTile` | Runtime/Data | Class. Per-tile state: elevation, temperature, moisture, biome ref, feature ref, resource ref, optional navigable-river marker. |
-| `RiverNetwork` | Runtime/Data | Edge-based non-navigable segments + tile-based navigable segments + explicit transition nodes. |
+| `RiverEdge` | Runtime/Data | Struct. Canonical naming of one hex edge; the unordered river set. |
+| `HexCorner` | Runtime/Data | Struct. Canonical hex-vertex identity. A step between adjacent corners is exactly one hex edge — the basis of river topology (ADR-0025). |
+| `RiverPath` | Runtime/Data | Class. Ordered source-to-mouth river: steps, terrace levels, waterfalls, Strahler order. |
 | `WorldGenerationSettings` | Runtime/Generation | Class. Public input to generation: seed, dimensions, preset, content references, overrides. |
 | `HexWorldGenerator` | Runtime/Generation | Public entry point. `Generate(settings) → WorldMap`, plus async/progress variant. |
 | `IGenerationStage` | Runtime/Generation/Pipeline | Internal contract: takes a `GenerationContext`, mutates the map for one pipeline step. |
