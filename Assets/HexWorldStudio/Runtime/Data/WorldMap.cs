@@ -39,6 +39,7 @@ namespace HexWorldStudio.Data
         // queries. Both stay in sync via SetRivers.
         private RiverEdge[] _riverEdges = Array.Empty<RiverEdge>();
         private HashSet<RiverEdge> _riverEdgeSet;
+        private RiverPath[] _riverPaths = Array.Empty<RiverPath>();
 
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
@@ -67,6 +68,22 @@ namespace HexWorldStudio.Data
         /// See <see cref="RiverEdge"/> and ADR-0024.
         /// </summary>
         public IReadOnlyList<RiverEdge> RiverEdges => _riverEdges;
+
+        /// <summary>
+        /// The directed, ordered view of the same river network
+        /// (ADR-0025): one <see cref="RiverPath"/> per river, each a
+        /// sequence of steps running from its source corner to its
+        /// mouth. Empty when rivers are disabled.
+        /// </summary>
+        /// <remarks>
+        /// Use this when direction matters — animating flow, asking
+        /// which way is downstream, tracing a river to the sea, or
+        /// scaling visuals by <see cref="RiverPath.StrahlerOrder"/>.
+        /// Use <see cref="RiverEdges"/> for adjacency questions like
+        /// "does this tile border a river". Every edge appearing in a
+        /// path also appears in <see cref="RiverEdges"/>.
+        /// </remarks>
+        public IReadOnlyList<RiverPath> RiverPaths => _riverPaths;
 
         /// <summary>
         /// Constructs an empty map (every tile initialized to default
@@ -254,6 +271,7 @@ namespace HexWorldStudio.Data
             {
                 _riverEdges = Array.Empty<RiverEdge>();
                 _riverEdgeSet = null;
+                _riverPaths = Array.Empty<RiverPath>();
                 return;
             }
 
@@ -266,6 +284,23 @@ namespace HexWorldStudio.Data
 
             _riverEdges = arr;
             _riverEdgeSet = set;
+        }
+
+        // Commits the ordered path view. Called by RiverStage alongside
+        // SetRivers; the paths' edges are expected to already be in the
+        // set passed to SetRivers. Order is the stage's commit order,
+        // which is itself deterministic (raster source enumeration).
+        internal void SetRiverPaths(IReadOnlyList<RiverPath> paths)
+        {
+            if (paths == null || paths.Count == 0)
+            {
+                _riverPaths = Array.Empty<RiverPath>();
+                return;
+            }
+
+            var arr = new RiverPath[paths.Count];
+            for (int i = 0; i < paths.Count; i++) arr[i] = paths[i];
+            _riverPaths = arr;
         }
 
         // Stable order used to sort RiverEdges for deterministic

@@ -79,22 +79,35 @@ namespace HexWorldStudio.Rendering
                  "Defaulted lower than biome cohesion so feature variety inside a biome reads as natural diversity.")]
         [SerializeField] private float _featureCohesion = WorldGenerationSettings.DefaultFeatureCohesion;
 
-        [Header("Rivers (ADR-0024)")]
+        [Header("Rivers (ADR-0025)")]
 
         [Range(0f, 1f)]
         [Tooltip("How many rivers the world generates. " +
-                 "0 = no rivers (stage no-ops). " +
+                 "0 = no rivers (stage no-ops entirely, lakes included). " +
                  "0.15 = default (Civ-style). " +
-                 "Effective source rate is RiverDensity × tile moisture, so dry areas get fewer rivers than wet ones.")]
+                 "Effective source rate is RiverDensity × moisture, so dry areas get fewer rivers than wet ones.")]
         [SerializeField] private float _riverDensity = WorldGenerationSettings.DefaultRiverDensity;
 
         [Range(0, 5)]
-        [Tooltip("Minimum elevation level for a tile to spawn a river. Default 4 (of 6) reserves rivers for highlands and mountains.")]
+        [Tooltip("Minimum elevation level across the three tiles meeting at a river's source corner. " +
+                 "Default 3 (of 6) keeps sources in the highlands; raising it toward 5 makes rivers rare.")]
         [SerializeField] private int _riverSourceMinElevation = WorldGenerationSettings.DefaultRiverSourceMinElevation;
 
         [Range(5, 200)]
-        [Tooltip("Safety cap on river length (in downhill steps). Rivers that reach water or merge with an existing river before this cap terminate normally.")]
+        [Tooltip("Safety cap on river length (in steps). Rivers that reach water or merge with an existing river before this cap terminate normally.")]
         [SerializeField] private int _maxRiverLength = WorldGenerationSettings.DefaultMaxRiverLength;
+
+        [Range(1, 20)]
+        [Tooltip("Rivers shorter than this many edges are discarded instead of being left as one- or two-segment stubs.")]
+        [SerializeField] private int _minRiverLength = WorldGenerationSettings.DefaultMinRiverLength;
+
+        [Range(1, 5)]
+        [Tooltip("River channels only ever run between tiles of the same elevation level. A terrace boundary is crossed by a single waterfall edge, never run along; this caps how many levels one waterfall may drop.")]
+        [SerializeField] private int _maxWaterfallDrop = WorldGenerationSettings.DefaultMaxWaterfallDrop;
+
+        [Range(0f, 0.5f)]
+        [Tooltip("How deeply a basin must fill before it becomes a lake. Higher values give fewer, deeper lakes; 0 disables lake creation.")]
+        [SerializeField] private float _lakeDepthThreshold = WorldGenerationSettings.DefaultLakeDepthThreshold;
 
         [Header("Rendering")]
         [Tooltip("World renderer that will draw the generated map. If null, this script searches its own GameObject and children.")]
@@ -168,7 +181,8 @@ namespace HexWorldStudio.Rendering
                     _biomeCohesion, _featureCohesion,
                     _continentShapeAlgorithm,
                     _resources, _resourceDensity,
-                    _riverDensity, _riverSourceMinElevation, _maxRiverLength);
+                    _riverDensity, _riverSourceMinElevation, _maxRiverLength,
+                    _minRiverLength, _maxWaterfallDrop, _lakeDepthThreshold);
             LatestMap = new HexWorldGenerator().Generate(settings);
             _renderer.Render(LatestMap);
 

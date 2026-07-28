@@ -1,11 +1,10 @@
+using System;
 using System.Collections.Generic;
 using HexWorldStudio.Content;
 using HexWorldStudio.Coordinates;
 using HexWorldStudio.Data;
 using HexWorldStudio.Generation;
-using HexWorldStudio.Generation.Pipeline;
 using HexWorldStudio.Generation.Pipeline.Stages;
-using HexWorldStudio.Generation.Rng;
 using NUnit.Framework;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -13,386 +12,445 @@ using Object = UnityEngine.Object;
 namespace HexWorldStudio.Tests
 {
     /// <summary>
-    /// EditMode tests for <see cref="RiverStage"/> — opt-out
-    /// contract (density = 0 = no-op), source eligibility, downhill
-    /// walk terminating at water, and byte-identical determinism.
+    /// EditMode tests for the corner-network <c>RiverStage</c>
+    /// (ADR-0025). These run the whole generator rather than a
+    /// hand-seeded fixture, because the properties that matter are
+    /// about real terrain: that river chains are corner-connected, that
+    /// no edge lies on a shoreline, that channels stay on one terrace
+    /// while waterfalls cross between them, and that rivers meet the
+    /// sea head-on instead of running along it.
     /// </summary>
     public class RiverStageTests
     {
-        private const int Width = 20;
-        private const int Height = 12;
-        private const ulong SampleSeed = 0xDEADBEEFuL;
+        private const int Width = 60;
+        private const int Height = 40;
 
-        private static (GenerationContext ctx, BiomeDefinition land, BiomeDefinition ocean, BiomeDefinition coast)
-            NewContext(float riverDensity, ulong seed = SampleSeed, int minElevation = 1)
+        private readonly List<BiomeDefinition> _created = new List<BiomeDefinition>();
+
+        [TearDown]
+        public void TearDown()
         {
-            BiomeDefinition land = ScriptableObject.CreateInstance<BiomeDefinition>();
-            land.BiomeName = "Land";
-            land.IsWater = false;
+            foreach (BiomeDefinition b in _created)
+            {
+                if (b != null) Object.DestroyImmediate(b);
+            }
+            _created.Clear();
+        }
 
-            BiomeDefinition ocean = ScriptableObject.CreateInstance<BiomeDefinition>();
-            ocean.BiomeName = "Ocean";
-            ocean.IsWater = true;
-            ocean.IsCoastalWater = false;
+        private BiomeDefinition NewBiome(string name, bool isWater, bool isCoastal)
+        {
+            var b = ScriptableObject.CreateInstance<BiomeDefinition>();
+            b.BiomeName = name;
+            b.IsWater = isWater;
+            b.IsCoastalWater = isCoastal;
+            if (!isWater)
+            {
+                b.MinTemperature = 0f;
+                b.MaxTemperature = 1f;
+                b.MinMoisture = 0f;
+                b.MaxMoisture = 1f;
+            }
+            _created.Add(b);
+            return b;
+        }
 
-            BiomeDefinition coast = ScriptableObject.CreateInstance<BiomeDefinition>();
-            coast.BiomeName = "Coast";
-            coast.IsWater = true;
-            coast.IsCoastalWater = true;
+        private WorldGenerationSettings NewSettings(
+            ulong seed,
+            float riverDensity = WorldGenerationSettings.DefaultRiverDensity,
+            int minSourceElevation = WorldGenerationSettings.DefaultRiverSourceMinElevation,
+            int minRiverLength = WorldGenerationSettings.DefaultMinRiverLength,
+            int maxWaterfallDrop = WorldGenerationSettings.DefaultMaxWaterfallDrop,
+            float lakeDepth = WorldGenerationSettings.DefaultLakeDepthThreshold)
+        {
+            var biomes = new[]
+            {
+                NewBiome("Ocean", isWater: true, isCoastal: false),
+                NewBiome("Coast", isWater: true, isCoastal: true),
+                NewBiome("Land", isWater: false, isCoastal: false),
+            };
 
-            var biomes = new[] { ocean, coast, land };
-            var settings = new WorldGenerationSettings(
-                Width, Height, seed,
-                WorldGenerationSettings.DefaultLandRatio,
-                biomes,
-                biomeCohesion: 0f, featureCohesion: 0f,
-                continentShapeAlgorithm: ContinentShapeAlgorithm.Continents,
+            return new WorldGenerationSettings(
+                Width, Height, seed, WorldGenerationSettings.DefaultLandRatio, biomes,
+                WorldGenerationSettings.DefaultBiomeCohesion,
+                WorldGenerationSettings.DefaultFeatureCohesion,
+                ContinentShapeAlgorithm.Continents,
                 resources: null, resourceDensity: 0f,
                 riverDensity: riverDensity,
-                riverSourceMinElevation: minElevation,
-                maxRiverLength: 40);
-
-            var map = new WorldMap(Width, Height, seed);
-            var rng = new RngService(seed);
-            return (new GenerationContext(map, settings, rng), land, ocean, coast);
+                riverSourceMinElevation: minSourceElevation,
+                maxRiverLength: WorldGenerationSettings.DefaultMaxRiverLength,
+                minRiverLength: minRiverLength,
+                maxWaterfallDrop: maxWaterfallDrop,
+                lakeDepthThreshold: lakeDepth);
         }
 
-        // Build an elevation ramp: high on the west (source area),
-        // dropping east until the last two columns turn into ocean.
-        // Sets BOTH the continuous Elevation (which RiverStage's
-        // downhill walk uses) AND the discretized ElevationLevel
-        // (which the source filter uses) so the ramp reads correctly
-        // to every consumer.
-        private static void SeedRampWorld(WorldMap map, BiomeDefinition land, BiomeDefinition ocean, BiomeDefinition coast)
+        private WorldMap Generate(ulong seed) =>
+            new HexWorldGenerator().Generate(NewSettings(seed));
+
+        private static bool TouchesWater(HexCorner corner, WorldMap map)
         {
-            int denom = Mathf.Max(1, Width - 1);
-            foreach (HexTile t in map.Tiles)
-            {
-                (int col, int row) = t.Coord.ToOffsetOddR();
-                bool isWater = col >= Width - 2;
-                if (isWater)
-                {
-                    t.LandState = TileLandState.Water;
-                    t.Biome = (col == Width - 2) ? coast : ocean;
-                    t.ElevationLevel = 0;
-                    t.Elevation = 0.05f - (col - (Width - 2)) * 0.02f;
-                }
-                else
-                {
-                    t.LandState = TileLandState.Land;
-                    t.Biome = land;
-                    // Continuous ramp from 1.0 at col 0 down to 0.15
-                    // at col Width-3 — strictly decreasing per column
-                    // so the downhill walk always has a lower neighbor.
-                    t.Elevation = 1f - (col / (float)denom) * 0.85f;
-                    // Discretized level: 5 at west → 1 at the last
-                    // land column, matching the continuous ramp.
-                    int stepsFromEast = (Width - 3) - col;
-                    t.ElevationLevel = Mathf.Clamp(stepsFromEast, 1, 5);
-                }
-                t.Moisture = 0.8f;
-            }
+            corner.GetIncidentTiles(map.Width, out HexCoord a, out HexCoord b, out HexCoord c);
+            return IsWater(map, a) || IsWater(map, b) || IsWater(map, c);
         }
 
-        // ---- Opt-out contract -------------------------------------
+        private static bool IsWater(WorldMap map, HexCoord coord) =>
+            map.TryGetTile(coord, out HexTile t) && t.LandState == TileLandState.Water;
+
+        // Seeds chosen only for coverage breadth; the assertions are
+        // properties, not golden values, so any seed set works.
+        private static readonly ulong[] Seeds =
+        {
+            0xDEADBEEFuL, 0x1234uL, 0xABCDEFuL, 0x99uL,
+        };
+
+        // ---- opt-out and guards ----------------------------------
 
         [Test]
-        public void Execute_ZeroDensity_LeavesRiverEdgesEmpty()
+        public void Execute_ZeroDensity_ProducesNoRiversLakesOrPaths()
         {
-            var (ctx, land, ocean, coast) = NewContext(riverDensity: 0f);
-            try
+            WorldMap map = new HexWorldGenerator().Generate(NewSettings(0xFEEDuL, riverDensity: 0f));
+
+            Assert.That(map.RiverEdges.Count, Is.EqualTo(0), "RiverDensity 0 must produce no edges.");
+            Assert.That(map.RiverPaths.Count, Is.EqualTo(0), "RiverDensity 0 must produce no paths.");
+            foreach (HexTile t in map.Tiles)
             {
-                SeedRampWorld(ctx.Map, land, ocean, coast);
-                new RiverStage().Execute(ctx);
-                Assert.That(ctx.Map.RiverEdges.Count, Is.EqualTo(0),
-                    "RiverDensity = 0 must be a complete no-op.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(land);
-                Object.DestroyImmediate(ocean);
-                Object.DestroyImmediate(coast);
+                Assert.That(t.IsLake, Is.False,
+                    "RiverDensity 0 must skip the hydrology pass entirely, lakes included.");
             }
         }
 
         [Test]
         public void Execute_NullContext_Throws()
         {
-            Assert.Throws<System.ArgumentNullException>(
+            Assert.Throws<ArgumentNullException>(
                 () => new RiverStage().Execute(null));
         }
 
-        // ---- Source eligibility ----------------------------------
-
         [Test]
-        public void Execute_MinElevationFilter_ExcludesLowLandFromSources()
+        public void Execute_ProducesRiversOnDefaultSettings()
         {
-            // With min elevation = 5 and the ramp's max at 5, only
-            // the leftmost column can be a source. Set density = 1
-            // to make every eligible tile a certain source.
-            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 5);
-            try
-            {
-                SeedRampWorld(ctx.Map, land, ocean, coast);
-                new RiverStage().Execute(ctx);
+            // Guards against the whole subsystem silently producing
+            // nothing — the failure mode that a pile of "no invalid
+            // rivers exist" tests would happily pass.
+            int total = 0;
+            foreach (ulong seed in Seeds) total += Generate(seed).RiverPaths.Count;
 
-                // Every river's leftmost edge must sit near the highest column.
-                foreach (RiverEdge e in ctx.Map.RiverEdges)
-                {
-                    HexTile owner = ctx.Map.Tiles[ctx.Map.TryGetIndex(e.Coord, out int idx) ? idx : 0];
-                    Assert.That(owner, Is.Not.Null);
-                }
-                Assert.That(ctx.Map.RiverEdges.Count, Is.GreaterThan(0),
-                    "Highest-elevation tiles at density=1 must produce at least one river.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(land);
-                Object.DestroyImmediate(ocean);
-                Object.DestroyImmediate(coast);
-            }
+            Assert.That(total, Is.GreaterThan(0),
+                "Default settings must produce rivers on ordinary terrain.");
         }
 
-        // ---- Termination at coast --------------------------------
+        // ---- the structural invariants ---------------------------
 
         [Test]
-        public void Execute_RiverEdges_AreAllBetweenLandTiles()
+        public void Execute_ConsecutiveStepsShareACorner()
         {
-            // Rivers must never occupy a land ↔ water edge; the walk
-            // terminates before crossing into water and the last
-            // recorded edge is a land ↔ land seam whose vertex
-            // touches a water tile (river mouth). Civ V / VI
-            // convention per ADR-0024.
-            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
-            try
+            // The whole point of the corner model: chains are connected
+            // by construction. This is the property the ADR-0024
+            // connector pass tried and failed to guarantee.
+            foreach (ulong seed in Seeds)
             {
-                SeedRampWorld(ctx.Map, land, ocean, coast);
-                new RiverStage().Execute(ctx);
-
-                Assert.That(ctx.Map.RiverEdges.Count, Is.GreaterThan(0),
-                    "Expected at least one river on the ramp world at density=1.");
-
-                foreach (RiverEdge e in ctx.Map.RiverEdges)
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
                 {
-                    ctx.Map.TryGetTile(e.Coord, out HexTile ownerTile);
-                    ctx.Map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile otherTile);
-                    Assert.That(ownerTile, Is.Not.Null);
-                    Assert.That(otherTile, Is.Not.Null);
-                    Assert.That(ownerTile.LandState, Is.EqualTo(TileLandState.Land),
-                        $"River edge {e} has a water endpoint (owner {ownerTile.Coord}).");
-                    Assert.That(otherTile.LandState, Is.EqualTo(TileLandState.Land),
-                        $"River edge {e} has a water endpoint (other {otherTile.Coord}).");
-                }
-            }
-            finally
-            {
-                Object.DestroyImmediate(land);
-                Object.DestroyImmediate(ocean);
-                Object.DestroyImmediate(coast);
-            }
-        }
-
-        [Test]
-        public void Execute_AtLeastOneRiverReachesTheCoast()
-        {
-            // Companion to the "no water-edge" invariant: verify the
-            // walk actually gets to the coast (not that every walk
-            // fails to reach water at all — that would be a silent
-            // regression). Some river edge must involve a land tile
-            // that has a water neighbor.
-            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
-            try
-            {
-                SeedRampWorld(ctx.Map, land, ocean, coast);
-                new RiverStage().Execute(ctx);
-
-                bool coastalEdgeExists = false;
-                foreach (RiverEdge e in ctx.Map.RiverEdges)
-                {
-                    ctx.Map.TryGetTile(e.Coord, out HexTile ownerTile);
-                    ctx.Map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile otherTile);
-                    if (HasWaterNeighbor(ctx.Map, ownerTile) || HasWaterNeighbor(ctx.Map, otherTile))
+                    for (int i = 1; i < path.Steps.Count; i++)
                     {
-                        coastalEdgeExists = true;
-                        break;
+                        Assert.That(path.Steps[i].From, Is.EqualTo(path.Steps[i - 1].To),
+                            $"seed {seed:X}: step {i} does not continue from step {i - 1}.");
                     }
                 }
-                Assert.That(coastalEdgeExists, Is.True,
-                    "At least one river edge must involve a land tile adjacent to water — else no river reaches the coast.");
-            }
-            finally
-            {
-                Object.DestroyImmediate(land);
-                Object.DestroyImmediate(ocean);
-                Object.DestroyImmediate(coast);
-            }
-        }
-
-        private static bool HasWaterNeighbor(WorldMap map, HexTile tile)
-        {
-            if (tile == null) return false;
-            foreach (HexCoord n in tile.Coord.Neighbors())
-            {
-                if (map.TryGetTile(n, out HexTile neighbor)
-                    && neighbor.LandState == TileLandState.Water)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        // ---- Deferred lake flips --------------------------------
-
-        // All-land bowl: elevation rises with distance from a single
-        // interior tile, so that tile is the unique global minimum and
-        // every walk converges on it. There is no water anywhere, so
-        // the walk cannot terminate at a coast — it must terminate at
-        // the minimum and queue it as a pending lake.
-        //
-        // The ramp world used by the other tests is strictly monotone
-        // and therefore never produces a local minimum, which is why
-        // the mid-walk flip corruption went unnoticed: no existing test
-        // ever reached that branch.
-        private static HexCoord SeedBowlWorld(WorldMap map, BiomeDefinition land)
-        {
-            int centerCol = Width / 2;
-            int centerRow = Height / 2;
-            HexCoord center = HexCoordExtensions.FromOffsetOddR(centerCol, centerRow);
-
-            float maxDist = Mathf.Sqrt(centerCol * centerCol + centerRow * centerRow);
-            foreach (HexTile t in map.Tiles)
-            {
-                (int col, int row) = t.Coord.ToOffsetOddR();
-                float dc = col - centerCol;
-                float dr = row - centerRow;
-                float dist = Mathf.Sqrt(dc * dc + dr * dr);
-
-                t.LandState = TileLandState.Land;
-                t.Biome = land;
-                t.Elevation = 0.05f + (dist / maxDist) * 0.95f;
-                t.ElevationLevel = Mathf.Clamp(Mathf.RoundToInt(dist / maxDist * 5f), 0, 5);
-                t.Moisture = 0.8f;
-            }
-            return center;
-        }
-
-        [Test]
-        public void Execute_InlandLocalMinimum_BecomesLakeWithNoWaterEdges()
-        {
-            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
-            try
-            {
-                HexCoord center = SeedBowlWorld(ctx.Map, land);
-                new RiverStage().Execute(ctx);
-
-                Assert.That(ctx.Map.TryGetTile(center, out HexTile centerTile), Is.True);
-                Assert.That(centerTile.LandState, Is.EqualTo(TileLandState.Water),
-                    "The unique global minimum must be flipped to a lake.");
-                Assert.That(centerTile.Biome, Is.SameAs(coast),
-                    "Lake tiles take the roster's coastal-water biome.");
-
-                // The invariant the mid-walk flip used to break: the
-                // edge that arrived at the minimum was recorded while
-                // the tile was still land, and stayed in the set after
-                // the flip made it a shoreline edge.
-                foreach (RiverEdge e in ctx.Map.RiverEdges)
-                {
-                    ctx.Map.TryGetTile(e.Coord, out HexTile owner);
-                    ctx.Map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile other);
-                    Assert.That(owner.LandState, Is.EqualTo(TileLandState.Land),
-                        $"Edge {e} touches the lake at {owner.Coord}.");
-                    Assert.That(other.LandState, Is.EqualTo(TileLandState.Land),
-                        $"Edge {e} touches the lake at {other.Coord}.");
-                }
-            }
-            finally
-            {
-                Object.DestroyImmediate(land);
-                Object.DestroyImmediate(ocean);
-                Object.DestroyImmediate(coast);
             }
         }
 
         [Test]
-        public void Execute_LakeFlips_AreDeterministic()
+        public void Execute_EachStepsEdgeIsTheEdgeBetweenItsCorners()
         {
-            var (ctxA, landA, oceanA, coastA) = NewContext(riverDensity: 0.6f, seed: 0xB0A7uL);
-            var (ctxB, landB, oceanB, coastB) = NewContext(riverDensity: 0.6f, seed: 0xB0A7uL);
-            try
+            foreach (ulong seed in Seeds)
             {
-                SeedBowlWorld(ctxA.Map, landA);
-                SeedBowlWorld(ctxB.Map, landB);
-
-                new RiverStage().Execute(ctxA);
-                new RiverStage().Execute(ctxB);
-
-                for (int i = 0; i < ctxA.Map.Tiles.Count; i++)
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
                 {
-                    Assert.That(ctxA.Map.Tiles[i].LandState, Is.EqualTo(ctxB.Map.Tiles[i].LandState),
-                        $"Lake flip diverged at tile index {i} — determinism contract broken.");
+                    foreach (RiverStep step in path.Steps)
+                    {
+                        Assert.That(step.From.TryGetSharedEdge(step.To, map.Width, out RiverEdge edge),
+                            Is.True, $"seed {seed:X}: {step} corners are not adjacent.");
+                        Assert.That(edge, Is.EqualTo(step.Edge),
+                            $"seed {seed:X}: {step} carries an edge that is not its corners' shared edge.");
+                    }
                 }
-            }
-            finally
-            {
-                Object.DestroyImmediate(landA); Object.DestroyImmediate(oceanA); Object.DestroyImmediate(coastA);
-                Object.DestroyImmediate(landB); Object.DestroyImmediate(oceanB); Object.DestroyImmediate(coastB);
             }
         }
 
-        // ---- No self-duplication --------------------------------
+        [Test]
+        public void Execute_NoRiverEdgeTouchesWater()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverEdge e in map.RiverEdges)
+                {
+                    Assert.That(map.TryGetTile(e.Coord, out HexTile a), Is.True);
+                    Assert.That(map.TryGetTile(e.Coord.Neighbor(e.Direction), out HexTile b), Is.True);
+                    Assert.That(a.LandState, Is.EqualTo(TileLandState.Land),
+                        $"seed {seed:X}: river edge {e} lies on a shoreline.");
+                    Assert.That(b.LandState, Is.EqualTo(TileLandState.Land),
+                        $"seed {seed:X}: river edge {e} lies on a shoreline.");
+                }
+            }
+        }
 
         [Test]
-        public void Execute_ProducesCanonicalDeduplicatedEdges()
+        public void Execute_ChannelStepsRunBetweenTilesOfEqualElevationLevel()
         {
-            var (ctx, land, ocean, coast) = NewContext(riverDensity: 1f, minElevation: 1);
-            try
+            // The terrace rule: a river never runs *along* a boundary
+            // between a higher and a lower tile.
+            foreach (ulong seed in Seeds)
             {
-                SeedRampWorld(ctx.Map, land, ocean, coast);
-                new RiverStage().Execute(ctx);
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    foreach (RiverStep step in path.Steps)
+                    {
+                        if (step.IsWaterfall) continue;
+                        map.TryGetTile(step.Edge.Coord, out HexTile a);
+                        map.TryGetTile(step.Edge.Coord.Neighbor(step.Edge.Direction), out HexTile b);
+                        Assert.That(a.ElevationLevel, Is.EqualTo(b.ElevationLevel),
+                            $"seed {seed:X}: channel {step} runs along a terrace boundary "
+                            + $"({a.ElevationLevel} vs {b.ElevationLevel}).");
+                    }
+                }
+            }
+        }
 
+        [Test]
+        public void Execute_WaterfallStepsMatchTheirTilesAndRespectMaxDrop()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    foreach (RiverStep step in path.Steps)
+                    {
+                        if (!step.IsWaterfall) continue;
+                        map.TryGetTile(step.Edge.Coord, out HexTile a);
+                        map.TryGetTile(step.Edge.Coord.Neighbor(step.Edge.Direction), out HexTile b);
+
+                        int high = Mathf.Max(a.ElevationLevel, b.ElevationLevel);
+                        int low = Mathf.Min(a.ElevationLevel, b.ElevationLevel);
+
+                        Assert.That(step.FromLevel, Is.EqualTo(high), $"seed {seed:X}: {step} FromLevel wrong.");
+                        Assert.That(step.ToLevel, Is.EqualTo(low), $"seed {seed:X}: {step} ToLevel wrong.");
+                        Assert.That(step.DropLevels,
+                            Is.LessThanOrEqualTo(WorldGenerationSettings.DefaultMaxWaterfallDrop),
+                            $"seed {seed:X}: {step} drops further than MaxWaterfallDrop.");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_NeverPlacesTwoWaterfallsInARow()
+        {
+            // "They can't be in a line between a higher and a lower
+            // tile" — one crossing, then the river must resume as a
+            // channel on the lower terrace. No staircases down a cliff.
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    for (int i = 1; i < path.Steps.Count; i++)
+                    {
+                        Assert.That(path.Steps[i - 1].IsWaterfall && path.Steps[i].IsWaterfall, Is.False,
+                            $"seed {seed:X}: consecutive waterfalls at step {i}.");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_TerraceLevelsAreContinuousAlongAPath()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    for (int i = 1; i < path.Steps.Count; i++)
+                    {
+                        Assert.That(path.Steps[i].FromLevel, Is.EqualTo(path.Steps[i - 1].ToLevel),
+                            $"seed {seed:X}: water surface jumps terraces at step {i}.");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_RiversMeetWaterHeadOnRatherThanRunningAlongIt()
+        {
+            // Only the final corner of a path may touch water. If an
+            // interior corner did, the river would be flowing parallel
+            // to a shoreline instead of into it.
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    Assert.That(TouchesWater(path.Source, map), Is.False,
+                        $"seed {seed:X}: river source already touches water.");
+
+                    for (int i = 0; i < path.Steps.Count - 1; i++)
+                    {
+                        Assert.That(TouchesWater(path.Steps[i].To, map), Is.False,
+                            $"seed {seed:X}: interior corner at step {i} touches water — "
+                            + "the river is running along the shore.");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_DiscardsRiversShorterThanMinLength()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    Assert.That(path.Length,
+                        Is.GreaterThanOrEqualTo(WorldGenerationSettings.DefaultMinRiverLength),
+                        $"seed {seed:X}: {path} is shorter than MinRiverLength.");
+                }
+            }
+        }
+
+        // ---- edge set / path agreement ---------------------------
+
+        [Test]
+        public void Execute_RiverEdgesIsExactlyTheUnionOfPathEdges()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+
+                var union = new HashSet<RiverEdge>();
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    foreach (RiverStep step in path.Steps) union.Add(step.Edge);
+                }
+
+                Assert.That(map.RiverEdges.Count, Is.EqualTo(union.Count),
+                    $"seed {seed:X}: RiverEdges and RiverPaths disagree on edge count.");
+
+                foreach (RiverEdge e in union)
+                {
+                    Assert.That(map.HasRiverAt(e.Coord, e.Direction), Is.True,
+                        $"seed {seed:X}: path edge {e} is missing from RiverEdges.");
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_RiverEdgesContainsNoDuplicates()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
                 var seen = new HashSet<RiverEdge>();
-                foreach (RiverEdge e in ctx.Map.RiverEdges)
+                foreach (RiverEdge e in map.RiverEdges)
                 {
-                    Assert.That(seen.Add(e), Is.True,
-                        $"Duplicate river edge in RiverEdges: {e}");
+                    Assert.That(seen.Add(e), Is.True, $"seed {seed:X}: duplicate edge {e}.");
                 }
-            }
-            finally
-            {
-                Object.DestroyImmediate(land);
-                Object.DestroyImmediate(ocean);
-                Object.DestroyImmediate(coast);
             }
         }
 
-        // ---- Determinism ----------------------------------------
+        // ---- lakes ------------------------------------------------
 
         [Test]
-        public void Execute_Deterministic_SameSeedSameRivers()
+        public void Execute_LakesAreWaterAndFlaggedAsLakes()
         {
-            var (ctxA, landA, oceanA, coastA) = NewContext(riverDensity: 0.5f, seed: 0xDEADuL);
-            var (ctxB, landB, oceanB, coastB) = NewContext(riverDensity: 0.5f, seed: 0xDEADuL);
-            try
+            foreach (ulong seed in Seeds)
             {
-                SeedRampWorld(ctxA.Map, landA, oceanA, coastA);
-                SeedRampWorld(ctxB.Map, landB, oceanB, coastB);
-
-                new RiverStage().Execute(ctxA);
-                new RiverStage().Execute(ctxB);
-
-                Assert.That(ctxA.Map.RiverEdges.Count, Is.EqualTo(ctxB.Map.RiverEdges.Count),
-                    "Same seed must produce the same number of river edges.");
-                for (int i = 0; i < ctxA.Map.RiverEdges.Count; i++)
+                WorldMap map = Generate(seed);
+                foreach (HexTile t in map.Tiles)
                 {
-                    Assert.That(ctxA.Map.RiverEdges[i], Is.EqualTo(ctxB.Map.RiverEdges[i]),
-                        $"Divergence at edge {i} — determinism contract broken.");
+                    if (!t.IsLake) continue;
+                    Assert.That(t.LandState, Is.EqualTo(TileLandState.Water),
+                        $"seed {seed:X}: lake tile {t.Coord} is not water.");
+                    Assert.That(t.Biome, Is.Not.Null);
+                    Assert.That(t.Biome.IsWater, Is.True,
+                        $"seed {seed:X}: lake tile {t.Coord} carries a non-water biome.");
+                    Assert.That(t.Feature, Is.Null,
+                        $"seed {seed:X}: lake tile {t.Coord} kept a land feature.");
                 }
             }
-            finally
+        }
+
+        [Test]
+        public void Execute_RaisingLakeThreshold_ProducesFewerLakes()
+        {
+            int Count(float threshold)
             {
-                Object.DestroyImmediate(landA); Object.DestroyImmediate(oceanA); Object.DestroyImmediate(coastA);
-                Object.DestroyImmediate(landB); Object.DestroyImmediate(oceanB); Object.DestroyImmediate(coastB);
+                WorldMap map = new HexWorldGenerator().Generate(
+                    NewSettings(0xDEADBEEFuL, lakeDepth: threshold));
+                int n = 0;
+                foreach (HexTile t in map.Tiles) if (t.IsLake) n++;
+                return n;
+            }
+
+            Assert.That(Count(0.2f), Is.LessThanOrEqualTo(Count(0.02f)),
+                "A deeper lake threshold must not produce more lakes.");
+        }
+
+        // ---- Strahler --------------------------------------------
+
+        [Test]
+        public void Execute_StrahlerOrderIsAtLeastOneOnEveryPath()
+        {
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    Assert.That(path.StrahlerOrder, Is.GreaterThanOrEqualTo(1),
+                        $"seed {seed:X}: {path} has an invalid Strahler order.");
+                }
+            }
+        }
+
+        // ---- determinism -----------------------------------------
+
+        [Test]
+        public void Execute_Deterministic_SameSeedSameRiversAndLakes()
+        {
+            WorldMap a = Generate(0xC0FFEEuL);
+            WorldMap b = Generate(0xC0FFEEuL);
+
+            Assert.That(a.RiverEdges.Count, Is.EqualTo(b.RiverEdges.Count));
+            for (int i = 0; i < a.RiverEdges.Count; i++)
+            {
+                Assert.That(a.RiverEdges[i], Is.EqualTo(b.RiverEdges[i]),
+                    $"River edge {i} diverged — determinism contract broken.");
+            }
+
+            Assert.That(a.RiverPaths.Count, Is.EqualTo(b.RiverPaths.Count));
+            for (int p = 0; p < a.RiverPaths.Count; p++)
+            {
+                Assert.That(a.RiverPaths[p].Length, Is.EqualTo(b.RiverPaths[p].Length),
+                    $"Path {p} length diverged.");
+                Assert.That(a.RiverPaths[p].StrahlerOrder, Is.EqualTo(b.RiverPaths[p].StrahlerOrder),
+                    $"Path {p} Strahler order diverged.");
+                for (int s = 0; s < a.RiverPaths[p].Length; s++)
+                {
+                    Assert.That(a.RiverPaths[p].Steps[s].Edge,
+                        Is.EqualTo(b.RiverPaths[p].Steps[s].Edge),
+                        $"Path {p} step {s} diverged.");
+                }
+            }
+
+            for (int i = 0; i < a.Tiles.Count; i++)
+            {
+                Assert.That(a.Tiles[i].IsLake, Is.EqualTo(b.Tiles[i].IsLake),
+                    $"Lake flag diverged at tile {i}.");
             }
         }
     }

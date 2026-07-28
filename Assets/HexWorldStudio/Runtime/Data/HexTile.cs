@@ -96,6 +96,22 @@ namespace HexWorldStudio.Data
         public TileLandState LandState { get; internal set; } = TileLandState.Unset;
 
         /// <summary>
+        /// <c>true</c> for inland water created by the hydrology pass —
+        /// a basin that filled deeply enough to hold a lake (ADR-0025).
+        /// Always <c>false</c> for ocean and coast, which come from the
+        /// continent-shape stage.
+        /// </summary>
+        /// <remarks>
+        /// Lakes carry a water <see cref="Biome"/> like any other water
+        /// tile, so existing water checks keep working unchanged. This
+        /// flag is what lets renderers and gameplay code tell a
+        /// mountain lake from the sea — most visibly, a lake sits at
+        /// its surrounding terrace height rather than at sea level, so
+        /// it must not be drawn at the ocean's Y.
+        /// </remarks>
+        public bool IsLake { get; internal set; }
+
+        /// <summary>
         /// Discrete elevation step used by gameplay traversal rules
         /// (default: a unit can move only to a tile within ±1 of its
         /// current <see cref="ElevationLevel"/>; buyer code may

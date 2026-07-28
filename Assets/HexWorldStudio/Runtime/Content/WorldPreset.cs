@@ -156,6 +156,27 @@ namespace HexWorldStudio.Content
         public int MaxRiverLength = WorldGenerationSettings.DefaultMaxRiverLength;
 
         /// <summary>
+        /// Minimum river length in edges; shorter walks are discarded
+        /// rather than left as stubs (ADR-0025).
+        /// </summary>
+        [Tooltip("Rivers shorter than this many edges are discarded instead of being left as one- or two-segment stubs.")]
+        public int MinRiverLength = WorldGenerationSettings.DefaultMinRiverLength;
+
+        /// <summary>
+        /// Maximum elevation levels a single waterfall may drop
+        /// (ADR-0025).
+        /// </summary>
+        [Tooltip("River channels only run between tiles of equal elevation level. A terrace boundary is crossed by a single waterfall edge, never run along, and that crossing may not span more levels than this.")]
+        public int MaxWaterfallDrop = WorldGenerationSettings.DefaultMaxWaterfallDrop;
+
+        /// <summary>
+        /// How deeply a basin must fill before it becomes a lake
+        /// (ADR-0025).
+        /// </summary>
+        [Tooltip("How deeply a basin must fill before it becomes a lake. Higher values give fewer, deeper lakes; set very high to disable lakes.")]
+        public float LakeDepthThreshold = WorldGenerationSettings.DefaultLakeDepthThreshold;
+
+        /// <summary>
         /// Bundles this preset's fields together with a per-generation
         /// <paramref name="seed"/> into a fresh
         /// <see cref="WorldGenerationSettings"/> ready to hand to
@@ -173,7 +194,8 @@ namespace HexWorldStudio.Content
                 BiomeCohesion, FeatureCohesion,
                 ContinentShapeAlgorithm,
                 Resources, ResourceDensity,
-                RiverDensity, RiverSourceMinElevation, MaxRiverLength);
+                RiverDensity, RiverSourceMinElevation, MaxRiverLength,
+                MinRiverLength, MaxWaterfallDrop, LakeDepthThreshold);
         }
     }
 }

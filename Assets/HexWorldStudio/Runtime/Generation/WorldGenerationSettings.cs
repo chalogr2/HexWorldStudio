@@ -92,7 +92,17 @@ namespace HexWorldStudio.Generation
         /// highlands and mountains, matching the "rivers come from
         /// high country" hydrology intuition.
         /// </summary>
-        public const int DefaultRiverSourceMinElevation = 4;
+        /// <remarks>
+        /// Lowered from <c>4</c> to <c>3</c> in ADR-0025 because the
+        /// meaning changed: it used to gate a single source <i>tile</i>,
+        /// and now gates the <i>lowest of the three tiles</i> meeting at
+        /// a source corner. Measured on 60×40 worlds, all three tiles
+        /// reaching level 4 leaves only ~6% of land corners eligible and
+        /// yields under two rivers per map; level 3 yields roughly
+        /// eight, which is the Civ-like density the old default was
+        /// aiming at.
+        /// </remarks>
+        public const int DefaultRiverSourceMinElevation = 3;
 
         /// <summary>
         /// Safety cap on individual river length in steps. Rivers
@@ -101,6 +111,38 @@ namespace HexWorldStudio.Generation
         /// runaway walks on unusual elevation topologies.
         /// </summary>
         public const int DefaultMaxRiverLength = 40;
+
+        /// <summary>
+        /// Default minimum river length, in edges. Walks that commit
+        /// fewer steps than this are discarded rather than left as
+        /// one- or two-segment stubs, which read as artifacts rather
+        /// than rivers. See <see cref="MinRiverLength"/>.
+        /// </summary>
+        public const int DefaultMinRiverLength = 3;
+
+        /// <summary>
+        /// Default maximum waterfall drop, in elevation levels. A river
+        /// channel must run between two tiles of equal
+        /// <c>ElevationLevel</c>; a level boundary may only be crossed,
+        /// as a single-edge waterfall, and never by more than this many
+        /// levels at once. See <see cref="MaxWaterfallDrop"/>.
+        /// </summary>
+        public const int DefaultMaxWaterfallDrop = 1;
+
+        /// <summary>
+        /// Default lake depth threshold. A land tile that depression
+        /// filling had to raise by more than this much (in normalized
+        /// elevation units) is genuinely submerged in a basin and
+        /// becomes a lake. See <see cref="LakeDepthThreshold"/>.
+        /// </summary>
+        /// <remarks>
+        /// Measured on 60×40 worlds: <c>0.02</c> produces ~21 separate
+        /// lake bodies per map averaging three tiles each, which reads
+        /// as speckle rather than lakes. <c>0.08</c> produces ~3.5
+        /// bodies of ~4 tiles, which reads as real water. Raise for
+        /// fewer, deeper lakes.
+        /// </remarks>
+        public const float DefaultLakeDepthThreshold = 0.08f;
 
         /// <summary>The map's width in tiles (number of columns).</summary>
         public int Width { get; }
@@ -231,6 +273,38 @@ namespace HexWorldStudio.Generation
         /// walk that exceeds the cap is truncated.
         /// </summary>
         public int MaxRiverLength { get; }
+
+        /// <summary>
+        /// Minimum river length in edges. Walks shorter than this are
+        /// discarded (ADR-0025). The terrace constraint makes some
+        /// walks strand after a step or two; dropping those keeps
+        /// stubs off the map. Defaults to
+        /// <see cref="DefaultMinRiverLength"/>.
+        /// </summary>
+        public int MinRiverLength { get; }
+
+        /// <summary>
+        /// Maximum number of elevation levels a single waterfall may
+        /// drop (ADR-0025). River channels only ever run between two
+        /// tiles of equal <c>ElevationLevel</c>; a terrace boundary is
+        /// crossed by exactly one edge, and that crossing may not span
+        /// more levels than this. Consecutive crossings are always
+        /// forbidden, so a river never staircases down a cliff face.
+        /// Defaults to <see cref="DefaultMaxWaterfallDrop"/>.
+        /// </summary>
+        public int MaxWaterfallDrop { get; }
+
+        /// <summary>
+        /// How deeply a tile must sit below its basin's spill level,
+        /// in normalized elevation units, before it becomes a lake
+        /// (ADR-0025). Lakes are derived from the depression-filled
+        /// field rather than from stranded river walks, so they come
+        /// out as contiguous bodies of water at a consistent surface
+        /// level. Raise for fewer, deeper lakes; set to a large value
+        /// to disable lake creation entirely. Defaults to
+        /// <see cref="DefaultLakeDepthThreshold"/>.
+        /// </summary>
+        public float LakeDepthThreshold { get; }
 
         /// <summary>
         /// Constructs a settings instance with the default
@@ -427,6 +501,64 @@ namespace HexWorldStudio.Generation
                                        float riverDensity,
                                        int riverSourceMinElevation,
                                        int maxRiverLength)
+            : this(width, height, seed, landRatio, biomes,
+                   biomeCohesion, featureCohesion, continentShapeAlgorithm,
+                   resources, resourceDensity,
+                   riverDensity, riverSourceMinElevation, maxRiverLength,
+                   DefaultMinRiverLength, DefaultMaxWaterfallDrop, DefaultLakeDepthThreshold)
+        {
+        }
+
+        /// <summary>
+        /// Full constructor including the ADR-0025 river shaping
+        /// settings. Rivers remain opt-out: when
+        /// <paramref name="riverDensity"/> is <c>0</c> the
+        /// <c>RiverStage</c> is a no-op and both
+        /// <see cref="WorldMap.RiverEdges"/> and
+        /// <see cref="WorldMap.RiverPaths"/> stay empty.
+        /// </summary>
+        /// <param name="width">Number of columns. Must be positive.</param>
+        /// <param name="height">Number of rows. Must be positive.</param>
+        /// <param name="seed">The 64-bit RNG seed.</param>
+        /// <param name="landRatio">Target land proportion in <c>(0, 1)</c>.</param>
+        /// <param name="biomes">Biome content set; structural requirements per the shorter ctor.</param>
+        /// <param name="biomeCohesion">Biome smoothing strength in <c>[0, 1]</c>.</param>
+        /// <param name="featureCohesion">Feature smoothing strength in <c>[0, 1]</c>.</param>
+        /// <param name="continentShapeAlgorithm">Continent-shape algorithm choice.</param>
+        /// <param name="resources">Resource content set.</param>
+        /// <param name="resourceDensity">Per-tile resource placement probability.</param>
+        /// <param name="riverDensity">
+        /// Per-source-eligible-corner probability of becoming a river
+        /// source in <c>[0, 1]</c>. <c>0</c> disables rivers.
+        /// </param>
+        /// <param name="riverSourceMinElevation">
+        /// Minimum <c>ElevationLevel</c> across a corner's three tiles
+        /// for it to be a river source candidate.
+        /// </param>
+        /// <param name="maxRiverLength">
+        /// Safety cap on the number of steps a single river can take.
+        /// </param>
+        /// <param name="minRiverLength">
+        /// Minimum committed length in edges; shorter walks are discarded.
+        /// </param>
+        /// <param name="maxWaterfallDrop">
+        /// Maximum elevation levels a single waterfall crossing may span.
+        /// </param>
+        /// <param name="lakeDepthThreshold">
+        /// Fill depth above which a basin tile becomes a lake.
+        /// </param>
+        public WorldGenerationSettings(int width, int height, ulong seed, float landRatio,
+                                       IReadOnlyList<BiomeDefinition> biomes,
+                                       float biomeCohesion, float featureCohesion,
+                                       ContinentShapeAlgorithm continentShapeAlgorithm,
+                                       IReadOnlyList<ResourceDefinition> resources,
+                                       float resourceDensity,
+                                       float riverDensity,
+                                       int riverSourceMinElevation,
+                                       int maxRiverLength,
+                                       int minRiverLength,
+                                       int maxWaterfallDrop,
+                                       float lakeDepthThreshold)
         {
             Width = width;
             Height = height;
@@ -441,6 +573,9 @@ namespace HexWorldStudio.Generation
             RiverDensity = riverDensity;
             RiverSourceMinElevation = riverSourceMinElevation;
             MaxRiverLength = maxRiverLength;
+            MinRiverLength = minRiverLength;
+            MaxWaterfallDrop = maxWaterfallDrop;
+            LakeDepthThreshold = lakeDepthThreshold;
         }
     }
 }

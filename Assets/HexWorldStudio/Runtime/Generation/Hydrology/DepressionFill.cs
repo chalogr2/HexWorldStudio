@@ -40,6 +40,15 @@ namespace HexWorldStudio.Generation.Hydrology
     internal static class DepressionFill
     {
         /// <summary>
+        /// Slope imposed across filled regions so they are never
+        /// perfectly flat. Small enough to be invisible against a
+        /// normalized <c>[0, 1]</c> elevation field even after
+        /// accumulating along a long fill chain, large enough to
+        /// survive single-precision comparison.
+        /// </summary>
+        internal const float Epsilon = 1e-5f;
+
+        /// <summary>
         /// Returns a depression-filled copy of <paramref name="map"/>'s
         /// continuous elevation field, indexed to match
         /// <see cref="WorldMap.Tiles"/>.
@@ -88,7 +97,19 @@ namespace HexWorldStudio.Generation.Hydrology
                     if (resolved[ni]) continue;
 
                     resolved[ni] = true;
-                    if (filled[ni] < level) filled[ni] = level;
+
+                    // Raise to just *above* the spill level, not level
+                    // with it. A plain max() leaves filled basins
+                    // perfectly flat, and a walk that requires strict
+                    // descent cannot cross a flat region at all — so
+                    // the rivers that most need the fill would strand
+                    // in the middle of it. The epsilon gradient points
+                    // back down the fill direction, which is toward the
+                    // outlet, so filled basins drain the way water
+                    // actually would. This is the standard
+                    // priority-flood-with-epsilon variant.
+                    float floor = level + Epsilon;
+                    if (filled[ni] < floor) filled[ni] = floor;
                     heap.Push(filled[ni], ni);
                 }
             }

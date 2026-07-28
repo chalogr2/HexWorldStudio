@@ -52,7 +52,9 @@ namespace HexWorldStudio.Tests
 
             float[] filled = DepressionFill.Fill(map);
 
-            Assert.That(FilledAt(map, filled, 4, 4), Is.EqualTo(0.5f).Within(1e-6f),
+            // Filling raises to just above the spill level (see
+            // DepressionFill.Epsilon), so this is "0.5 plus a hair".
+            Assert.That(FilledAt(map, filled, 4, 4), Is.EqualTo(0.5f).Within(1e-4f),
                 "An isolated pit must fill to the level of the terrain around it.");
         }
 
@@ -94,7 +96,11 @@ namespace HexWorldStudio.Tests
             {
                 for (int r = 3; r <= 7; r++)
                 {
-                    Assert.That(FilledAt(map, filled, c, r), Is.EqualTo(0.9f).Within(1e-6f),
+                    // Within a hair of the rim: the epsilon gradient
+                    // accumulates along the fill chain, so the filled
+                    // basin slopes imperceptibly toward its outlet
+                    // rather than being exactly flat.
+                    Assert.That(FilledAt(map, filled, c, r), Is.EqualTo(0.9f).Within(1e-3f),
                         $"Basin tile ({c},{r}) did not fill to the rim.");
                 }
             }
@@ -117,11 +123,16 @@ namespace HexWorldStudio.Tests
         }
 
         [Test]
-        public void Fill_LeavesNoStrictLocalMinimum()
+        public void Fill_LeavesEveryTileAStrictlyLowerNeighbour()
         {
             // The defining property, on a pure-noise field: every
-            // interior land tile must have a neighbour at or below it.
-            // This is exactly what lets the downhill walk terminate.
+            // interior land tile must have a STRICTLY lower neighbour.
+            // Filling to exactly the spill level would only guarantee
+            // "lower or equal", and a walk requiring strict descent
+            // cannot cross a flat filled basin at all — it would strand
+            // in the middle of the very depressions the fill exists to
+            // remove. The epsilon gradient is what upgrades this to
+            // strict, and it is the property the river walk relies on.
             WorldMap map = NewLandMap(24, 16);
             var rng = new Random(7);
             foreach (HexTile t in map.Tiles)
@@ -144,18 +155,19 @@ namespace HexWorldStudio.Tests
                 (int _, int row) = tile.Coord.ToOffsetOddR();
                 if (row == 0 || row == map.Height - 1) continue; // outlets by definition
 
-                bool hasLowerOrEqual = false;
-                for (int d = 0; d < 6 && !hasLowerOrEqual; d++)
+                bool hasStrictlyLower = false;
+                for (int d = 0; d < 6 && !hasStrictlyLower; d++)
                 {
                     if (map.TryGetIndex(tile.Coord.Neighbor((HexDirection)d), out int ni)
-                        && filled[ni] <= filled[i])
+                        && filled[ni] < filled[i])
                     {
-                        hasLowerOrEqual = true;
+                        hasStrictlyLower = true;
                     }
                 }
 
-                Assert.That(hasLowerOrEqual, Is.True,
-                    $"Tile {tile.Coord} is still a strict local minimum after filling.");
+                Assert.That(hasStrictlyLower, Is.True,
+                    $"Tile {tile.Coord} has no strictly lower neighbour after filling — "
+                    + "a strict-descent walk would strand here.");
             }
         }
 
