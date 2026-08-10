@@ -83,7 +83,16 @@ namespace HexWorldStudio.Generation
         /// river stage entirely. See <see cref="RiverDensity"/> and
         /// ADR-0024.
         /// </summary>
-        public const float DefaultRiverDensity = 0.15f;
+        /// <remarks>
+        /// Raised from <c>0.15</c> to <c>0.3</c> in ADR-0025's
+        /// backward-tree revision. It is not a change in how many
+        /// rivers appear, but in how many of them are real: under the
+        /// old forward walk 43% of rivers stranded inland, so a 60×40
+        /// world drew about nine rivers of which four went nowhere.
+        /// Every river now reaches water, and 0.3 restores the same
+        /// count of rivers that actually arrive somewhere.
+        /// </remarks>
+        public const float DefaultRiverDensity = 0.3f;
 
         /// <summary>
         /// Minimum <c>ElevationLevel</c> a land tile must have to be

@@ -23,10 +23,13 @@ namespace HexWorldStudio.Rendering
     /// </para>
     /// <para>
     /// <b>Height follows the terraces.</b> A channel step runs at the
-    /// render height of its terrace level; a waterfall step descends
-    /// from its <see cref="RiverStep.FromLevel"/> to its
-    /// <see cref="RiverStep.ToLevel"/> as a flat lip, a near-vertical
-    /// face, and a plunge pool. Because the generator guarantees
+    /// render height of its terrace level. A waterfall step drops at
+    /// its <i>upstream</i> corner — a short lip, a near-vertical face
+    /// from <see cref="RiverStep.FromLevel"/> to
+    /// <see cref="RiverStep.ToLevel"/> — and then runs the rest of the
+    /// edge at the lower level, so the water is seen falling and then
+    /// running along the foot of the cliff rather than along its top.
+    /// Because the generator guarantees
     /// <c>Steps[i].ToLevel == Steps[i + 1].FromLevel</c>, consecutive
     /// segments always agree on height at the corner they share.
     /// </para>
@@ -250,13 +253,24 @@ namespace HexWorldStudio.Rendering
                 }
                 else
                 {
-                    // Flat lip, near-vertical face, flat plunge pool.
+                    // A waterfall edge is the one place a river lies on
+                    // a height boundary, which the topology forces (see
+                    // RiverStage). What decides whether it reads as a
+                    // waterfall or as a bug is where the water sits
+                    // along it.
+                    //
+                    // Drop at the UPSTREAM corner: a short lip, a
+                    // near-vertical face, then the whole rest of the
+                    // edge at the LOWER level. The viewer sees water
+                    // fall and then run along the foot of the cliff,
+                    // which is what a river below an escarpment looks
+                    // like. Sliding the drop along the edge instead
+                    // reads as water running down the top of the cliff,
+                    // which is what it must not look like.
                     Vector3 lip = Vector3.Lerp(previous, end, lipFraction);
-                    Vector3 foot = Vector3.Lerp(previous, end, 1f - lipFraction);
 
                     AddSample(samples, new Vector3(lip.x, yFrom, lip.z), halfEnd, ref distance, first: false);
-                    AddSample(samples, new Vector3(foot.x, yFrom, foot.z), halfEnd, ref distance, first: false);
-                    AddSample(samples, new Vector3(foot.x, yTo, foot.z), halfEnd, ref distance, first: false);
+                    AddSample(samples, new Vector3(lip.x, yTo, lip.z), halfEnd, ref distance, first: false);
                     AddSample(samples, new Vector3(end.x, yTo, end.z), halfEnd, ref distance, first: false);
                 }
 

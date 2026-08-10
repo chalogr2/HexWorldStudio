@@ -863,3 +863,21 @@ The Unity editor cannot run headless while it is open, so the coordinate, data, 
 - Per-step Strahler order (currently one order per path, with the renderer tapering width toward it). Exact per-segment width needs an extra int per step; revisit if the taper reads wrong.
 - Navigable / non-navigable dual representation (ADR-0006) still deferred to Slice 17.2.
 - PlayMode tests for the built river mesh; EditMode covers the geometry contracts it is built from.
+
+**Revision (2026-08-10) — the search runs backwards, and the waterfall drops at the corner.**
+
+Play-testing the first implementation surfaced two complaints: rivers still failed to reach the ocean, and rivers were still seen running along edges between tiles of different heights. Both were measured over twelve 60×40 worlds before anything was changed.
+
+*Rivers not reaching the ocean — a real defect, mine.* The forward walk kept the longest descent it found when no branch reached the sea. That fallback was added to raise river counts and it was firing on **43% of rivers (38 of 89)**: nearly half of every map's rivers simply stopped inland. The fix is to invert the search. Instead of walking downhill from a source and hoping, a **descent tree is grown outward from every water-touching corner**, expanding uphill along legal steps in reverse. A corner enters the tree only via a legal step from a corner that already drains to water, so every corner in the tree has a valid route to the sea *by construction*, and a river traced back down its parent links cannot strand. Sources are then chosen among the corners the tree actually reached. Measured after: **0% stranded, 100% reaching water.** The fallback is deleted.
+
+The tree carries state `(corner, terrace level on arrival, was the downstream step a fall)` rather than just the corner, because continuity and the no-two-falls rule make the legal onward steps depend on both. Roots are seeded at level `-1`, meaning a mouth accepts arrival on any terrace. Expansion never enters a second water-touching corner, so a river's mouth remains its only corner against the sea — the anti-coastline-hugging rule now falls out of the tree's shape rather than being a separate check.
+
+*Rivers on height boundaries — not a defect, and the ADR was wrong to imply it could be tuned away.* The claim that a waterfall costs exactly one edge was stated in the original ADR as a topological argument; it has now been checked by execution. Over 1296 consecutive edge pairs, **every pair shares a tile — 1296 of 1296, none disjoint.** So requiring equal levels on every edge would pin the shared tile's level and, by induction, hold an entire river on one terrace where it could never reach the sea. Boundary-running edges are not a bug to remove but a floor to sit on: measured at **22–24% of river length**.
+
+That floor was probed rather than assumed. A cost penalty on waterfall steps was measured at 1, 3, 6 and 20 against a channel's 1; the boundary share stayed at 22–25% in every case, because descending N levels costs N boundary edges however the route is priced. The knob was removed rather than left in looking meaningful, and the tree uses a uniform step cost.
+
+What changed instead is the **rendering**, chosen by the user from three options (the alternatives being to carve river valleys into the terrain, or to confine rivers to a single terrace and lose most of them). A waterfall step now drops at its **upstream** corner — a short lip, a near-vertical face, then the whole remainder of the edge at the lower terrace. The viewer sees water fall and then run along the *foot* of the cliff, which is what a river below an escarpment looks like. The previous geometry slid the drop along the edge, which reads as water running down the *top* of a cliff — the thing that must not appear. `RiverStyleAsset.WaterfallLipFraction` defaults to `0.15` and is documented as "keep small".
+
+*Default retuned.* `RiverDensity` 0.15 → 0.3. This is not more rivers, it is more *real* rivers: the old default drew about nine per 60×40 world of which four went nowhere, and 0.3 restores the same count of rivers that actually arrive somewhere (8.8 rivers, 49 edges, all reaching water).
+
+Two invariants were added to the suite: every river drains (its mouth touches water, or joins another river that does), and every corner except the mouth is inland.

@@ -309,6 +309,66 @@ namespace HexWorldStudio.Tests
         }
 
         [Test]
+        public void Execute_EveryRiverDrainsToWater()
+        {
+            // The symptom that drove the ADR-0025 backward-tree
+            // revision: under the old forward walk, 43% of rivers ran
+            // out of legal downhill steps and simply stopped in the
+            // middle of the land. The descent tree is grown outward
+            // from water, so a corner is only reachable when a legal
+            // route back down to water exists — a river physically
+            // cannot strand.
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    if (TouchesWater(path.Mouth, map)) continue;
+
+                    // Otherwise it must have joined another river,
+                    // which itself drains.
+                    bool joinsAnother = false;
+                    foreach (RiverPath other in map.RiverPaths)
+                    {
+                        if (ReferenceEquals(other, path)) continue;
+                        foreach (RiverStep step in other.Steps)
+                        {
+                            if (step.From.Equals(path.Mouth) || step.To.Equals(path.Mouth))
+                            {
+                                joinsAnother = true;
+                                break;
+                            }
+                        }
+                        if (joinsAnother) break;
+                    }
+
+                    Assert.That(joinsAnother, Is.True,
+                        $"seed {seed:X}: {path} ends inland without joining another river.");
+                }
+            }
+        }
+
+        [Test]
+        public void Execute_RiverMouthsAreTheOnlyCornersAgainstWater()
+        {
+            // Companion to the drain test: a river must meet water head
+            // on. Every corner except the mouth is inland, so a river
+            // cannot run parallel to a shoreline.
+            foreach (ulong seed in Seeds)
+            {
+                WorldMap map = Generate(seed);
+                foreach (RiverPath path in map.RiverPaths)
+                {
+                    for (int i = 0; i < path.Steps.Count; i++)
+                    {
+                        Assert.That(TouchesWater(path.Steps[i].From, map), Is.False,
+                            $"seed {seed:X}: corner entering step {i} touches water.");
+                    }
+                }
+            }
+        }
+
+        [Test]
         public void Execute_DiscardsRiversShorterThanMinLength()
         {
             foreach (ulong seed in Seeds)

@@ -92,14 +92,17 @@ namespace HexWorldStudio.Content
         public Color BaseColor = new Color(0.35f, 0.55f, 0.85f, 0.9f);
 
         /// <summary>
-        /// Fraction of a waterfall edge spent on the flat lip above the
-        /// drop, and again on the flat plunge pool below it (ADR-0025).
-        /// The remainder is the near-vertical face. <c>0.25</c> gives a
-        /// quarter lip, half fall, quarter pool. Lower values make the
-        /// drop longer and more gradual.
+        /// How far along a waterfall edge the drop happens, as a
+        /// fraction of that edge (ADR-0025). The water runs level for
+        /// this much, falls, then runs the remainder at the lower
+        /// terrace — so small values drop the water almost immediately
+        /// at the upstream corner and give a long run along the foot of
+        /// the cliff. Keep it small; large values slide the water along
+        /// the top of the height boundary, which is exactly the look
+        /// this geometry exists to avoid.
         /// </summary>
         [Range(0.05f, 0.45f)]
-        [Tooltip("Fraction of a waterfall edge spent on the flat lip above the drop and on the plunge pool below it. The rest is the vertical face.")]
-        public float WaterfallLipFraction = 0.25f;
+        [Tooltip("How far along a waterfall edge the drop happens. The water runs level for this fraction, falls, then runs the rest of the edge at the lower terrace. Keep small so the water falls at the corner rather than sliding along the top of the cliff.")]
+        public float WaterfallLipFraction = 0.15f;
     }
 }

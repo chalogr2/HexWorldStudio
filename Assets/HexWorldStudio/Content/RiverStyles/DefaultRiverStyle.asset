@@ -17,4 +17,4 @@ MonoBehaviour:
   MaxWidthRelativeToHex: 0.3
   SurfaceYOffset: 0.4
   BaseColor: {r: 0.35, g: 0.55, b: 0.85, a: 0.9}
-  WaterfallLipFraction: 0.25
+  WaterfallLipFraction: 0.15

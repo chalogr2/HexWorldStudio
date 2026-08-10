@@ -113,9 +113,9 @@ namespace HexWorldStudio.Data
         public HexCorner Source => _steps[0].From;
 
         /// <summary>
-        /// The corner this river ends at — touching the sea or a lake
-        /// when the river reached water, otherwise the furthest point
-        /// its descent could reach.
+        /// The corner this river ends at: either a corner touching the
+        /// sea or a lake, or the confluence where it joins a larger
+        /// river.
         /// </summary>
         public HexCorner Mouth => _steps[_steps.Length - 1].To;
 
@@ -123,9 +123,18 @@ namespace HexWorldStudio.Data
         public int Length => _steps.Length;
 
         /// <summary>
-        /// <c>true</c> when this river terminates at a corner touching
-        /// water (ocean, coast, or lake) rather than stranding inland.
+        /// <c>true</c> when this river's water reaches the sea or a
+        /// lake — directly at its <see cref="Mouth"/>, or by joining
+        /// another river that does.
         /// </summary>
+        /// <remarks>
+        /// Always <c>true</c> for paths produced by the generator: the
+        /// descent tree is grown outward from water, so a corner is
+        /// only reachable if a legal route back down to water exists
+        /// (ADR-0025). The property is kept because it is part of the
+        /// public shape and because buyer code constructing paths by
+        /// hand can set it honestly.
+        /// </remarks>
         public bool ReachesWater { get; }
 
         /// <summary>

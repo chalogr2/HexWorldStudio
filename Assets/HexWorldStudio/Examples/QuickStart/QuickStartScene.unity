@@ -557,8 +557,8 @@ MonoBehaviour:
   _resourceDensity: 0.2
   _biomeCohesion: 0.5
   _featureCohesion: 0.3
-  _riverDensity: 0.15
-  _riverSourceMinElevation: 4
+  _riverDensity: 0.3
+  _riverSourceMinElevation: 3
   _maxRiverLength: 40
   _renderer: {fileID: 1500000002}
   _riverRenderer: {fileID: 1500000005}
@@ -574,8 +574,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4d95b1fc209346278d928272be276afb, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _renderer: {fileID: 1500000002}
   _worldTileWidth: 32
 --- !u!114 &1500000005
@@ -588,8 +588,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: be1ea45fbd3c2dd429ff4f52fe06f1fd, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   _style: {fileID: 11400000, guid: b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7, type: 2}
   _worldRenderer: {fileID: 1500000002}
 --- !u!1 &2000000000
