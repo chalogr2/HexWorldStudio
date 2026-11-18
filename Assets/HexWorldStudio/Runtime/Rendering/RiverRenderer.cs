@@ -383,7 +383,20 @@ namespace HexWorldStudio.Rendering
 
         private static void DestroySafely(UnityEngine.Object obj)
         {
-            if (Application.isPlaying) Destroy(obj);
+            if (Application.isPlaying)
+            {
+                // Destroy is deferred to the end of the frame. Until then
+                // the object is still a child here, so anything that walks
+                // children in the same frame (WorldWrapRenderer.Refresh
+                // right after a regenerate) would see the old river mesh too and
+                // clone it. Hide and detach it now so it is gone at once.
+                if (obj is GameObject go)
+                {
+                    go.SetActive(false);
+                    go.transform.SetParent(null, worldPositionStays: false);
+                }
+                Destroy(obj);
+            }
             else DestroyImmediate(obj);
         }
     }

@@ -221,6 +221,14 @@ namespace HexWorldStudio.Rendering
             if (container == null) return;
             if (Application.isPlaying)
             {
+                // Destroy is deferred to the end of the frame. Until then
+                // the old container is still a child of this object, and
+                // when this sits on the same GameObject as the
+                // WorldRenderer, Refresh's child snapshot would clone the
+                // old copies into the new ones. Hide and detach it now so
+                // it is gone at once.
+                container.SetActive(false);
+                container.transform.SetParent(null, worldPositionStays: false);
                 Object.Destroy(container);
             }
             else
