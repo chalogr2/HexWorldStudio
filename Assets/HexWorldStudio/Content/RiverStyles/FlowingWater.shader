@@ -36,6 +36,7 @@ Shader "Hex World Studio/Flowing Water"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_fog
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
@@ -49,6 +50,7 @@ Shader "Hex World Studio/Flowing Water"
             {
                 float4 positionHCS : SV_POSITION;
                 float2 uv          : TEXCOORD0;
+                float  fogFactor   : TEXCOORD1;
             };
 
             TEXTURE2D(_BaseMap);
@@ -67,6 +69,9 @@ Shader "Hex World Studio/Flowing Water"
                 Varyings OUT;
                 OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
                 OUT.uv = IN.uv;
+                // Fade with scene fog like the Lit tiles around it, so
+                // distant rivers do not stay bright through the haze.
+                OUT.fogFactor = ComputeFogFactor(OUT.positionHCS.z);
                 return OUT;
             }
 
@@ -76,7 +81,9 @@ Shader "Hex World Studio/Flowing Water"
                 uv.y += _Time.y * _FlowSpeed;
                 uv = TRANSFORM_TEX(uv, _BaseMap);
                 half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv);
-                return tex * _BaseColor;
+                half4 col = tex * _BaseColor;
+                col.rgb = MixFog(col.rgb, IN.fogFactor);
+                return col;
             }
             ENDHLSL
         }
