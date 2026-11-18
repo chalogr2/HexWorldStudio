@@ -150,14 +150,18 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [ ] DocFX setup at release time for API reference generation
 - [ ] FAQ + troubleshooting
 
-## Marketing Assets
+## Exhibition (ADR-0026, replaces the Asset Store marketing plan)
 
-- [ ] Asset Store listing copy (title, short description, long description, keywords)
-- [ ] Hero image (1950×1300)
-- [ ] Icon (160×160)
-- [ ] Screenshot set (5–8 images)
-- [ ] Demo video (60–90s)
-- [ ] Asset Store landing-page mock for internal review
+- [x] README written for visitors (what it is, how to run it, controls, how generation works, code sample, credits)
+- [x] Third-Party Notices cover every bundled kit (Kenney Hexagon Kit, Cube Pets, Food Kit; all CC0)
+- [x] LICENSE finalized as all rights reserved (MIT expected later, owner's call)
+- [x] Runtime regenerate overlay in the QuickStart scene (Slice 18)
+- [x] Test suite green (469 / 469)
+- [ ] Screenshots / GIF in the README
+- [ ] Windows standalone build of the QuickStart scene (owner is doing this)
+- [ ] Make the GitHub repo public (owner's call, later)
+- [-] Asset Store listing copy, hero image, icon, landing-page mock (descoped, ADR-0026)
+- [-] Asset Store demo video (descoped; a short capture for the exhibition may still happen)
 
 ## Performance & scaling
 

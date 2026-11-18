@@ -881,3 +881,27 @@ What changed instead is the **rendering**, chosen by the user from three options
 *Default retuned.* `RiverDensity` 0.15 → 0.3. This is not more rivers, it is more *real* rivers: the old default drew about nine per 60×40 world of which four went nowhere, and 0.3 restores the same count of rivers that actually arrive somewhere (8.8 rivers, 49 edges, all reaching water).
 
 Two invariants were added to the suite: every river drains (its mouth touches water, or joins another river that does), and every corner except the mouth is inland.
+
+---
+
+## ADR-0026 — Not an Asset Store product: exhibition / portfolio piece, all rights reserved
+
+**Date:** 2026-11-18
+**Status:** Accepted
+**Supersedes:** the commercial framing in `CLAUDE.md` ("What we're building": target price, Asset Store launch discount) and the "Marketing Assets" section of `FEATURES.md`. Technical ADRs are unaffected.
+
+**Decision:**
+Hex World Studio will **not** be sold on the Unity Asset Store. It becomes an exhibition and portfolio piece: a GitHub repository plus a standalone demo build that visitors can play with. The license is **all rights reserved** for now (source viewable, no reuse without permission). A later move to MIT is expected but not scheduled. The GitHub repository stays private until the owner makes it public.
+
+**Alternatives considered:**
+
+- *Keep the Asset Store plan.* Rejected by the owner.
+- *Release under MIT immediately.* Deferred by the owner; LICENSE says all rights reserved until it is explicitly changed.
+
+**Consequences:**
+
+- Asset Store listing work (store copy, hero image, icon, landing-page mock) is descoped. Screenshots and a short demo capture survive as exhibition material.
+- The demo scene becomes the primary deliverable, so a runtime way to regenerate worlds is needed. Visitors cannot use the inspector. Shipped as the drop-in `RegenerateOverlay` (Slice 18).
+- "Buyer" in existing docs and XML comments now reads as "user of the code". Not rewritten wholesale; new text should say "user".
+- Architectural principles (data/render separation, determinism, zero third-party dependencies, public API with XML docs) stay. They are what makes the code worth showing.
+
