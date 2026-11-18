@@ -55,7 +55,8 @@ namespace HexWorldStudio.Examples.QuickStart
         [Header("Zoom")]
         [SerializeField] private float _zoomSpeed = 5f;
         [SerializeField] private float _minHeight = 6f;
-        [SerializeField] private float _maxHeight = 80f;
+        [Tooltip("Furthest zoom-out, as camera height above the map. The camera also starts here.")]
+        [SerializeField] private float _maxHeight = 22f;
 
         [Header("Rotate")]
         [Tooltip("Degrees per second of yaw rotation at full input.")]
@@ -64,7 +65,8 @@ namespace HexWorldStudio.Examples.QuickStart
         [Header("Tilt")]
         [Tooltip("Degrees per second of tilt at full input.")]
         [SerializeField] private float _tiltSpeed = 60f;
-        [SerializeField] private float _minTilt = 30f;
+        [Tooltip("Shallowest camera pitch in degrees (camera X rotation). Lower values look more toward the horizon.")]
+        [SerializeField] private float _minTilt = 40f;
         [SerializeField] private float _maxTilt = 65f;
         [SerializeField] private float _defaultTilt = 50f;
 
@@ -84,7 +86,9 @@ namespace HexWorldStudio.Examples.QuickStart
             _focusPoint = ComputeInitialFocusPoint();
             _yaw = 0f;
             _pitch = _defaultTilt;
-            _height = Mathf.Clamp((_minHeight + _maxHeight) * 0.4f, _minHeight, _maxHeight);
+            // Start fully zoomed out, so the first view is the widest one
+            // the player is allowed and nothing above the cap is ever shown.
+            _height = Mathf.Max(_minHeight, _maxHeight);
             ApplyCameraTransform();
         }
 

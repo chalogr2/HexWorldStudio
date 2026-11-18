@@ -287,10 +287,10 @@ MonoBehaviour:
   _panSpeed: 25
   _zoomSpeed: 20
   _minHeight: 6
-  _maxHeight: 80
+  _maxHeight: 22
   _rotateSpeed: 90
   _tiltSpeed: 60
-  _minTilt: 30
+  _minTilt: 40
   _maxTilt: 65
   _defaultTilt: 50
   _verticalSoftMin: -2
