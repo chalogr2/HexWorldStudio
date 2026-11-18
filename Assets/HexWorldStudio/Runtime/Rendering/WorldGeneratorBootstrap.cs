@@ -8,7 +8,7 @@ namespace HexWorldStudio.Rendering
     /// <summary>
     /// Demo-scene MonoBehaviour: configure generation settings in the
     /// inspector, generate a <see cref="WorldMap"/> on
-    /// <see cref="Start"/>, and feed it to a <see cref="WorldRenderer"/>.
+    /// <c>Start</c>, and feed it to a <see cref="WorldRenderer"/>.
     /// </summary>
     /// <remarks>
     /// Buyers use this as a copy-paste starting point. The QuickStart
@@ -123,8 +123,48 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Automatically generate on Start. Disable to drive Regenerate() from your own code.")]
         [SerializeField] private bool _generateOnStart = true;
 
-        /// <summary>The most recent <see cref="WorldMap"/> produced by <see cref="Regenerate"/>.</summary>
+        /// <summary>The most recent <see cref="WorldMap"/> produced by <see cref="Regenerate()"/>.</summary>
         public WorldMap LatestMap { get; internal set; }
+
+        /// <summary>
+        /// The seed the next <see cref="Regenerate()"/> will use when
+        /// seed randomization is off, and the seed the last generation
+        /// used otherwise. Set it through <see cref="Regenerate(ulong)"/>.
+        /// </summary>
+        public ulong Seed => _seed;
+
+        /// <summary>
+        /// Optional preset. When non-null it supplies every generation
+        /// setting except the seed, and <see cref="ContinentShapeAlgorithm"/>
+        /// and <see cref="LandRatio"/> are ignored. Takes effect on the
+        /// next regenerate.
+        /// </summary>
+        public WorldPreset Preset
+        {
+            get => _preset;
+            set => _preset = value;
+        }
+
+        /// <summary>
+        /// Continent-shape algorithm used when no <see cref="Preset"/> is
+        /// assigned. Takes effect on the next regenerate.
+        /// </summary>
+        public ContinentShapeAlgorithm ContinentShapeAlgorithm
+        {
+            get => _continentShapeAlgorithm;
+            set => _continentShapeAlgorithm = value;
+        }
+
+        /// <summary>
+        /// Target land ratio used when no <see cref="Preset"/> is
+        /// assigned. Clamped to the inspector range [0.05, 0.95]. Takes
+        /// effect on the next regenerate.
+        /// </summary>
+        public float LandRatio
+        {
+            get => _landRatio;
+            set => _landRatio = Mathf.Clamp(value, 0.05f, 0.95f);
+        }
 
         // Process-lifetime seed picker. Lives outside the deterministic
         // generator pipeline — it only chooses the ulong handed to the
@@ -132,7 +172,7 @@ namespace HexWorldStudio.Rendering
         private static readonly System.Random _seedPicker = new System.Random();
 
         /// <summary>
-        /// Fires at the end of every successful <see cref="Regenerate"/>
+        /// Fires at the end of every successful <see cref="Regenerate()"/>
         /// call. Buyer scripts subscribe to clear per-tile UI state
         /// (selection, hover, custom overlays) tied to the previous
         /// world.
@@ -152,6 +192,27 @@ namespace HexWorldStudio.Rendering
         [ContextMenu("Regenerate")]
         public void Regenerate()
         {
+            if (_randomizeSeedOnRegenerate)
+            {
+                _seed = PickRandomSeed();
+            }
+            GenerateAndRender();
+        }
+
+        /// <summary>
+        /// Generates and renders the world for exactly
+        /// <paramref name="seed"/>, ignoring the randomize-seed toggle.
+        /// Use this to rebuild a world someone wrote down.
+        /// </summary>
+        /// <param name="seed">The seed to generate.</param>
+        public void Regenerate(ulong seed)
+        {
+            _seed = seed;
+            GenerateAndRender();
+        }
+
+        private void GenerateAndRender()
+        {
             if (_renderer == null)
             {
                 _renderer = GetComponent<WorldRenderer>();
@@ -164,11 +225,6 @@ namespace HexWorldStudio.Rendering
             {
                 Debug.LogError("[WorldGeneratorBootstrap] No WorldRenderer assigned and none found on this GameObject or its children.", this);
                 return;
-            }
-
-            if (_randomizeSeedOnRegenerate)
-            {
-                _seed = PickRandomSeed();
             }
 
             // Preset wins when assigned — buyer-facing recipe for

@@ -120,6 +120,7 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [x] Per-tile coord lookup component (`HexTileBinding`, Slice 9 / ADR-0016) — `WorldRenderer` attaches one per tile so picking is a constant-time component lookup.
 - [x] Hover layer (`TileHover`, Slice 9): camera-raycast picking with `WorldWrapRenderer.WorldToCoord` math fallback; per-tile outline; `HoverDuration` exposed for tooltip work.
 - [x] Selection layer (`TileSelection`, Slice 9): primary click commits, secondary clears, `WorldGeneratorBootstrap.OnRegenerated` clears stale state.
+- [x] Runtime regenerate overlay (`RegenerateOverlay`, Slice 18): drop-in IMGUI panel in `Examples/QuickStart/Scripts/` for visitors at the keyboard. New random world (Space / N), rebuild a typed seed, step map type, nudge land ratio, hide with H. Finds the bootstrap itself; nothing references it, so deleting its GameObject removes it cleanly. No Canvas, EventSystem, or Input System dependency. Lives on its own `RegenerateOverlay` GameObject in the QuickStart scene.
 - [ ] "Earth-like" preset showcase
 - [ ] "Archipelago" preset showcase
 - [ ] "Frozen World" preset showcase
