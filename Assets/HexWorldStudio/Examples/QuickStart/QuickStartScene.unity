@@ -515,8 +515,8 @@ MonoBehaviour:
   _elevationStep: 0.15
   _tileWorldScale: 1
   _oceanRenderHeight: 0
-  _coastRiseAboveOcean: 0
   _landRiseAboveWater: 0
+  _cliffPrefab: {fileID: 5040373484374950302, guid: e1fa7fccabc0c234c9b20f83cbd9073e, type: 3}
 --- !u!114 &1500000003
 MonoBehaviour:
   m_ObjectHideFlags: 0

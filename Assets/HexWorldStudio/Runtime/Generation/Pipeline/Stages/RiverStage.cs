@@ -194,6 +194,7 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
             //    so they are contiguous and act as river outlets.
             BiomeDefinition lakeBiome = FindCoastBiome(settings.Biomes);
             CreateLakes(map, filled, settings.LakeDepthThreshold, lakeBiome);
+            FlattenLakeBodies(map);
 
             int maxLength = settings.MaxRiverLength > 0 ? settings.MaxRiverLength : 40;
             int minLength = settings.MinRiverLength > 0 ? settings.MinRiverLength : 1;
@@ -442,6 +443,87 @@ namespace HexWorldStudio.Generation.Pipeline.Stages
                 tile.Feature = null;
                 tile.Resource = null;
                 tile.IsLake = true;
+            }
+        }
+
+        // A body of water has one surface. CreateLakes keeps each
+        // submerged tile's own terrace level, so a lake spanning two
+        // terraces would render as a staircase of water. Give every
+        // connected lake body a single level: that of its lowest shore,
+        // which is where the water would spill out, so the surface sits
+        // flush with its lowest bank and never above any bank.
+        //
+        // A body that touches sea water is part of the sea, not a lake,
+        // and takes sea level. Basin filling makes that unlikely (a tile
+        // next to the sea cannot be raised much), but the invariant is
+        // "connected water shares one height", so it is enforced rather
+        // than assumed.
+        //
+        // Only water tiles change. The river walk reads levels from land
+        // tiles alone, so running this before routing is safe.
+        private static void FlattenLakeBodies(WorldMap map)
+        {
+            int count = map.Tiles.Count;
+            var visited = new bool[count];
+            var body = new List<HexTile>();
+            var frontier = new Stack<HexTile>();
+
+            for (int i = 0; i < count; i++)
+            {
+                HexTile seed = map.Tiles[i];
+                if (visited[i] || !seed.IsLake) continue;
+
+                body.Clear();
+                visited[i] = true;
+                frontier.Push(seed);
+
+                bool touchesSea = false;
+                int lowestShore = int.MaxValue;
+                int lowestOwn = int.MaxValue;
+
+                while (frontier.Count > 0)
+                {
+                    HexTile tile = frontier.Pop();
+                    body.Add(tile);
+                    if (tile.ElevationLevel < lowestOwn) lowestOwn = tile.ElevationLevel;
+
+                    for (int d = 0; d < 6; d++)
+                    {
+                        HexCoord n = tile.Coord.Neighbor((HexDirection)d);
+                        if (!map.TryGetTile(n, out HexTile neighbor)) continue;
+
+                        if (neighbor.LandState == TileLandState.Water)
+                        {
+                            if (!neighbor.IsLake)
+                            {
+                                touchesSea = true;
+                                continue;
+                            }
+                            if (visited[neighbor.TileIndex]) continue;
+                            visited[neighbor.TileIndex] = true;
+                            frontier.Push(neighbor);
+                        }
+                        else if (neighbor.ElevationLevel < lowestShore)
+                        {
+                            lowestShore = neighbor.ElevationLevel;
+                        }
+                    }
+                }
+
+                int level = lowestShore != int.MaxValue ? lowestShore : lowestOwn;
+                for (int b = 0; b < body.Count; b++)
+                {
+                    HexTile tile = body[b];
+                    if (touchesSea)
+                    {
+                        tile.IsLake = false;
+                        tile.ElevationLevel = 0;
+                    }
+                    else
+                    {
+                        tile.ElevationLevel = level;
+                    }
+                }
             }
         }
 

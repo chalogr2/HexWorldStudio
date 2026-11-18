@@ -37,14 +37,19 @@ namespace HexWorldStudio.Rendering
     /// transform parent chain to find the binding.
     /// </para>
     /// <para>
-    /// Tile Y uses a Civ-style stepped baseline: Ocean tiles pin to
-    /// <see cref="OceanRenderHeight"/>, Coast tiles to
-    /// <c>OceanRenderHeight + CoastRiseAboveOcean</c>, and land tiles
-    /// to <c>OceanRenderHeight + LandRiseAboveWater + ElevationLevel * ElevationStep</c>.
-    /// Water tiles get no per-tile noise variation — uniform water
-    /// reads as calm / readable in the Civ aesthetic, and Coast vs
-    /// Ocean provides the natural shoreline distinction. See
+    /// Tile Y uses a Civ-style stepped baseline: all sea water (Ocean
+    /// and Coast) sits at <see cref="OceanRenderHeight"/>, and land and
+    /// lake tiles sit at
+    /// <c>OceanRenderHeight + LandRiseAboveWater + ElevationLevel * ElevationStep</c>.
+    /// Connected water always shares one height: the sea is flat, and
+    /// the generator gives each lake body a single level. See
     /// <see cref="ComputeTileY"/>.
+    /// </para>
+    /// <para>
+    /// When <see cref="CliffPrefab"/> is set, any tile standing above a
+    /// neighbor gets a stack of cliff pieces under it, down to its
+    /// lowest neighbor, so raised tiles read as cliffs instead of
+    /// floating slabs.
     /// </para>
     /// <para>
     /// Buyers replace this renderer freely — the data layer never
@@ -70,11 +75,13 @@ namespace HexWorldStudio.Rendering
         [Tooltip("Y of open-ocean tiles. Sets the canonical sea level for the world.")]
         [SerializeField] private float _oceanRenderHeight = 0f;
 
-        [Tooltip("World units Coast tiles rise above OceanRenderHeight. Distinguishes shallow coastal water from open ocean (continental-shelf look).")]
-        [SerializeField] private float _coastRiseAboveOcean = 0.05f;
-
         [Tooltip("World units the lowest land tile (ElevationLevel 0) rises above OceanRenderHeight. Forms the visible coastline shelf between water and land. Higher values exaggerate the cliff between water and beach.")]
         [SerializeField] private float _landRiseAboveWater = 0.15f;
+
+        [Header("Cliffs")]
+
+        [Tooltip("Optional. Stacked under any tile that stands above a neighbor, down to the lowest neighbor, so raised tiles look like cliffs instead of floating. Leave empty for no cliffs.")]
+        [SerializeField] private GameObject _cliffPrefab;
 
         /// <summary>Y added per ElevationLevel step.</summary>
         public float ElevationStep
@@ -97,18 +104,24 @@ namespace HexWorldStudio.Rendering
             set => _oceanRenderHeight = value;
         }
 
-        /// <summary>World units Coast tiles rise above <see cref="OceanRenderHeight"/>.</summary>
-        public float CoastRiseAboveOcean
-        {
-            get => _coastRiseAboveOcean;
-            set => _coastRiseAboveOcean = value;
-        }
-
         /// <summary>World units the lowest land tile rises above <see cref="OceanRenderHeight"/>.</summary>
         public float LandRiseAboveWater
         {
             get => _landRiseAboveWater;
             set => _landRiseAboveWater = value;
+        }
+
+        /// <summary>
+        /// Optional prefab stacked under raised tiles to fill the space
+        /// down to their lowest neighbor. Pieces are squashed slightly
+        /// so a stack fits the gap exactly. Colliders on the pieces are
+        /// disabled so picking still hits the tile root. Null disables
+        /// cliffs. Takes effect on the next <see cref="Render"/>.
+        /// </summary>
+        public GameObject CliffPrefab
+        {
+            get => _cliffPrefab;
+            set => _cliffPrefab = value;
         }
 
         private Mesh _sharedMesh;
@@ -151,10 +164,14 @@ namespace HexWorldStudio.Rendering
             EnsureSharedMesh();
             EnsureMaterialCache();
 
+            MeasureCliffPiece();
+
             for (int i = 0; i < map.Tiles.Count; i++)
             {
                 HexTile tile = map.Tiles[i];
-                _tileObjects.Add(BuildTileGameObject(tile));
+                GameObject go = BuildTileGameObject(tile);
+                BuildCliffs(map, tile, go);
+                _tileObjects.Add(go);
             }
         }
 
@@ -205,7 +222,7 @@ namespace HexWorldStudio.Rendering
             (int col, int row) = tile.Coord.ToOffsetOddR();
             // Use HexMesh.WorldPosition only for the XZ layout; replace Y with the Civ-style stepped baseline.
             Vector3 worldPos = HexMesh.WorldPosition(col, row, 0, 0f);
-            worldPos.y = ComputeTileY(tile, _oceanRenderHeight, _coastRiseAboveOcean, _landRiseAboveWater, _elevationStep);
+            worldPos.y = ComputeTileY(tile, _oceanRenderHeight, _landRiseAboveWater, _elevationStep);
 
             var go = new GameObject($"Tile_{col}_{row}");
             go.transform.SetParent(transform, worldPositionStays: false);
@@ -402,10 +419,104 @@ namespace HexWorldStudio.Rendering
         }
 
         /// <summary>
+        /// The lowest world Y a cliff under <paramref name="tile"/> has to
+        /// reach: the Y of its lowest neighbor, never below
+        /// <paramref name="oceanY"/>. Rows past the top or bottom of the
+        /// map count as sea level, since the side of the world is open to
+        /// view there. Returns the tile's own Y when no neighbor is lower,
+        /// meaning no cliff is needed.
+        /// </summary>
+        internal static float ComputeCliffFloorY(WorldMap map, HexTile tile, float oceanY, float landRise, float elevationStep)
+        {
+            float tileY = ComputeTileY(tile, oceanY, landRise, elevationStep);
+            float floor = tileY;
+            for (int d = 0; d < 6; d++)
+            {
+                HexCoord n = tile.Coord.Neighbor((HexDirection)d);
+                float neighborY = map.TryGetTile(n, out HexTile neighbor)
+                    ? ComputeTileY(neighbor, oceanY, landRise, elevationStep)
+                    : oceanY;
+                if (neighborY < floor) floor = neighborY;
+            }
+            return floor < oceanY ? oceanY : floor;
+        }
+
+        /// <summary>
+        /// How many cliff pieces of height <paramref name="pieceHeight"/>
+        /// fill a gap of <paramref name="gap"/>. Rounds up, so pieces are
+        /// squashed rather than stretched to fit. Zero when there is no
+        /// gap worth filling.
+        /// </summary>
+        internal static int CliffPieceCount(float gap, float pieceHeight)
+        {
+            if (gap <= CliffGapEpsilon || pieceHeight <= 0f) return 0;
+            return Mathf.Max(1, Mathf.CeilToInt(gap / pieceHeight - 1e-3f));
+        }
+
+        private const float CliffGapEpsilon = 1e-3f;
+
+        // Cliff prefab height and bottom offset, measured once per Render
+        // from a throwaway instance. Units are the prefab's own (parent
+        // scale 1), which equal tile-root local units.
+        private float _cliffPieceHeight;
+        private float _cliffPieceBottom;
+
+        private void MeasureCliffPiece()
+        {
+            _cliffPieceHeight = 0f;
+            _cliffPieceBottom = 0f;
+            if (_cliffPrefab == null) return;
+
+            GameObject probe = Object.Instantiate(_cliffPrefab);
+            probe.transform.position = Vector3.zero;
+            Renderer[] renderers = probe.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                Bounds b = renderers[0].bounds;
+                for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+                _cliffPieceHeight = b.size.y;
+                _cliffPieceBottom = b.min.y;
+            }
+            DestroySafely(probe);
+        }
+
+        private void BuildCliffs(WorldMap map, HexTile tile, GameObject tileRoot)
+        {
+            if (_cliffPrefab == null || _cliffPieceHeight <= 0f) return;
+
+            float tileY = ComputeTileY(tile, _oceanRenderHeight, _landRiseAboveWater, _elevationStep);
+            float floorY = ComputeCliffFloorY(map, tile, _oceanRenderHeight, _landRiseAboveWater, _elevationStep);
+
+            float scale = _tileWorldScale != 0f ? _tileWorldScale : 1f;
+            float gap = (tileY - floorY) / scale; // tile-root local units
+            int count = CliffPieceCount(gap, _cliffPieceHeight);
+            if (count == 0) return;
+
+            float piece = gap / count;
+            float squash = piece / _cliffPieceHeight;
+
+            for (int i = 0; i < count; i++)
+            {
+                GameObject cliff = Object.Instantiate(_cliffPrefab, tileRoot.transform);
+                cliff.name = "Cliff";
+                Vector3 s = cliff.transform.localScale;
+                s.y *= squash;
+                cliff.transform.localScale = s;
+                cliff.transform.localRotation = Quaternion.identity;
+                // Piece i spans [-(i + 1) * piece, -i * piece] below the root.
+                cliff.transform.localPosition = new Vector3(0f, -(i + 1) * piece - _cliffPieceBottom * squash, 0f);
+
+                // The tile root's flat collider does the picking; cliff
+                // colliders would only add physics cost.
+                foreach (Collider c in cliff.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+            }
+        }
+
+        /// <summary>
         /// Computes the world-space Y for a tile under the Civ-style
-        /// stepped-baseline model: Ocean and Coast pin to their own
-        /// uniform Y (no per-tile noise — Civ water reads as calm /
-        /// readable), and land tiles step up from
+        /// stepped-baseline model: all sea water (Ocean and Coast) sits at
+        /// exactly <paramref name="oceanY"/>, so the sea is one flat
+        /// surface, and land and lake tiles step up from
         /// <paramref name="oceanY"/> by
         /// <paramref name="landRise"/> + <c>ElevationLevel * elevationStep</c>.
         /// </summary>
@@ -414,7 +525,7 @@ namespace HexWorldStudio.Rendering
         /// instantiating a MonoBehaviour. A null <paramref name="tile"/>
         /// is treated as land at level 0 (lowest coastline).
         /// </remarks>
-        internal static float ComputeTileY(HexTile tile, float oceanY, float coastRise, float landRise, float elevationStep)
+        internal static float ComputeTileY(HexTile tile, float oceanY, float landRise, float elevationStep)
         {
             // Lakes are water, but inland water: a mountain tarn sits in
             // its basin at the surrounding terrace height, not at sea
@@ -423,12 +534,10 @@ namespace HexWorldStudio.Rendering
             // keep the ElevationLevel the hydrology pass left on them
             // (ADR-0025).
             bool isSeaWater = tile != null && tile.Biome != null && tile.Biome.IsWater && !tile.IsLake;
-            if (isSeaWater)
-            {
-                return tile.Biome.IsCoastalWater
-                    ? oceanY + coastRise
-                    : oceanY;
-            }
+            // Coast and Ocean are always connected, so they must share
+            // a height; a separate coast rise would put a step in the
+            // middle of the sea.
+            if (isSeaWater) return oceanY;
             int level = (tile != null) ? tile.ElevationLevel : 0;
             return oceanY + landRise + level * elevationStep;
         }

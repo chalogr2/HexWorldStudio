@@ -18,7 +18,6 @@ namespace HexWorldStudio.Tests
     {
         // Tunables matching the WorldRenderer inspector defaults.
         private const float OceanY = 0f;
-        private const float CoastRise = 0.05f;
         private const float LandRise = 0.15f;
         private const float ElevationStep = 0.15f;
 
@@ -50,22 +49,22 @@ namespace HexWorldStudio.Tests
             try
             {
                 HexTile tile = NewTile(ocean, elevationLevel: 0);
-                float y = WorldRenderer.ComputeTileY(tile, OceanY, CoastRise, LandRise, ElevationStep);
+                float y = WorldRenderer.ComputeTileY(tile, OceanY, LandRise, ElevationStep);
                 Assert.That(y, Is.EqualTo(OceanY).Within(1e-5f));
             }
             finally { Object.DestroyImmediate(ocean); }
         }
 
         [Test]
-        public void ComputeTileY_CoastTile_SitsAtOceanPlusCoastRise()
+        public void ComputeTileY_CoastTile_SitsAtSeaLevel()
         {
             BiomeDefinition coast = NewBiome(isWater: true, isCoastal: true);
             try
             {
                 HexTile tile = NewTile(coast, elevationLevel: 0);
-                float y = WorldRenderer.ComputeTileY(tile, OceanY, CoastRise, LandRise, ElevationStep);
-                Assert.That(y, Is.EqualTo(OceanY + CoastRise).Within(1e-5f),
-                    "Coast tiles must sit above Ocean by exactly CoastRiseAboveOcean for the continental-shelf look.");
+                float y = WorldRenderer.ComputeTileY(tile, OceanY, LandRise, ElevationStep);
+                Assert.That(y, Is.EqualTo(OceanY).Within(1e-5f),
+                    "Coast water is connected to the ocean, so it must sit at the same height.");
             }
             finally { Object.DestroyImmediate(coast); }
         }
@@ -77,9 +76,9 @@ namespace HexWorldStudio.Tests
             try
             {
                 HexTile tile = NewTile(land, elevationLevel: 0);
-                float y = WorldRenderer.ComputeTileY(tile, OceanY, CoastRise, LandRise, ElevationStep);
+                float y = WorldRenderer.ComputeTileY(tile, OceanY, LandRise, ElevationStep);
                 Assert.That(y, Is.EqualTo(OceanY + LandRise).Within(1e-5f),
-                    "Lowest land tile must sit at the visible coastline shelf, above Coast by (LandRiseAboveWater - CoastRiseAboveOcean).");
+                    "Lowest land tile must sit at the visible coastline shelf, above the sea by LandRiseAboveWater.");
             }
             finally { Object.DestroyImmediate(land); }
         }
@@ -93,7 +92,7 @@ namespace HexWorldStudio.Tests
                 for (int level = 0; level <= 5; level++)
                 {
                     HexTile tile = NewTile(land, elevationLevel: level);
-                    float y = WorldRenderer.ComputeTileY(tile, OceanY, CoastRise, LandRise, ElevationStep);
+                    float y = WorldRenderer.ComputeTileY(tile, OceanY, LandRise, ElevationStep);
                     Assert.That(y, Is.EqualTo(OceanY + LandRise + level * ElevationStep).Within(1e-5f),
                         $"Land at level {level} must step up linearly from the coastline shelf.");
                 }
@@ -106,14 +105,13 @@ namespace HexWorldStudio.Tests
         {
             // Pin the Slice-11.1 invariant under the new baseline:
             // even at level 0, land must sit visibly above coastal water.
-            // Requires LandRise > CoastRise — defaults satisfy this and
-            // this test pins it as a contract.
+            // Requires LandRise > 0; the defaults satisfy this.
             BiomeDefinition land = NewBiome(isWater: false, isCoastal: false);
             BiomeDefinition coast = NewBiome(isWater: true, isCoastal: true);
             try
             {
-                float landY = WorldRenderer.ComputeTileY(NewTile(land, 0), OceanY, CoastRise, LandRise, ElevationStep);
-                float coastY = WorldRenderer.ComputeTileY(NewTile(coast, 0), OceanY, CoastRise, LandRise, ElevationStep);
+                float landY = WorldRenderer.ComputeTileY(NewTile(land, 0), OceanY, LandRise, ElevationStep);
+                float coastY = WorldRenderer.ComputeTileY(NewTile(coast, 0), OceanY, LandRise, ElevationStep);
                 Assert.That(landY, Is.GreaterThan(coastY),
                     "Lowest land must render above Coast water — defaults guarantee this; inspector overrides may violate.");
             }
@@ -125,16 +123,16 @@ namespace HexWorldStudio.Tests
         }
 
         [Test]
-        public void ComputeTileY_CoastSitsAboveOcean()
+        public void ComputeTileY_CoastAndOcean_ShareOneHeight()
         {
             BiomeDefinition coast = NewBiome(isWater: true, isCoastal: true);
             BiomeDefinition ocean = NewBiome(isWater: true, isCoastal: false);
             try
             {
-                float coastY = WorldRenderer.ComputeTileY(NewTile(coast, 0), OceanY, CoastRise, LandRise, ElevationStep);
-                float oceanY = WorldRenderer.ComputeTileY(NewTile(ocean, 0), OceanY, CoastRise, LandRise, ElevationStep);
-                Assert.That(coastY, Is.GreaterThan(oceanY),
-                    "Coast (shallow) must render above Ocean (deep) so the shoreline reads visibly even with no per-tile noise.");
+                float coastY = WorldRenderer.ComputeTileY(NewTile(coast, 0), OceanY, LandRise, ElevationStep);
+                float oceanY = WorldRenderer.ComputeTileY(NewTile(ocean, 0), OceanY, LandRise, ElevationStep);
+                Assert.That(coastY, Is.EqualTo(oceanY).Within(1e-5f),
+                    "Coast and Ocean are one connected body of water; any step between them shows as a ledge in the sea.");
             }
             finally
             {
@@ -148,7 +146,7 @@ namespace HexWorldStudio.Tests
         {
             // Defensive: null tile shouldn't NRE. The pure helper treats
             // it as land-at-level-0 (the safest visible default).
-            float y = WorldRenderer.ComputeTileY(null, OceanY, CoastRise, LandRise, ElevationStep);
+            float y = WorldRenderer.ComputeTileY(null, OceanY, LandRise, ElevationStep);
             Assert.That(y, Is.EqualTo(OceanY + LandRise).Within(1e-5f));
         }
 

@@ -905,3 +905,30 @@ Hex World Studio will **not** be sold on the Unity Asset Store. It becomes an ex
 - "Buyer" in existing docs and XML comments now reads as "user of the code". Not rewritten wholesale; new text should say "user".
 - Architectural principles (data/render separation, determinism, zero third-party dependencies, public API with XML docs) stay. They are what makes the code worth showing.
 
+---
+
+## ADR-0027 — Connected water shares one height; cliffs fill the space under raised tiles
+
+**Date:** 2026-11-18
+**Status:** Accepted
+**Supersedes:** the coast-rise half of the Slice 11.2 stepped baseline (`WorldRenderer.CoastRiseAboveOcean` is removed), and the ADR-0025 rule that a lake tile keeps the `ElevationLevel` of the land it replaced.
+
+**Context:**
+
+Play-testing the exhibition build showed two visual faults. (1) Water inside one body sat at several heights. The sea was already flat in the QuickStart scene (coast rise 0 there, 0.05 by default), but lakes kept each submerged tile's own terrace level, so a lake spanning two terraces rendered as a staircase of water. (2) A tile standing above a lower neighbor showed open space beneath it, because Kenney tiles are slabs about 0.34 units thick and a few elevation steps exceed that.
+
+**Decision:**
+
+1. *Invariant:* every connected body of water tiles renders at one height. Sea water (Ocean and Coast) always sits at `OceanRenderHeight`; the coast-rise knob is deleted rather than defaulted to 0, because any non-zero value breaks the invariant. In the data layer, `RiverStage.FlattenLakeBodies` runs right after lake creation and gives every connected lake body the `ElevationLevel` of its **lowest shore** (its spill point), so the surface is flush with its lowest bank and never above any bank. A lake body that touches sea water becomes sea (`IsLake = false`, level 0). The river walk reads levels from land tiles only, so this is safe before routing.
+2. *Cliffs:* `WorldRenderer.CliffPrefab` (optional; QuickStart uses `Content/Prefabs/Tiles/Cliff.prefab`). Under any tile, cliff pieces stack from the tile root down to the Y of its lowest neighbor (map rows past the poles count as sea level). Piece count is rounded up and pieces are squashed vertically so the stack fits the gap exactly. Piece height is measured once per `Render` from the prefab's renderer bounds, so any prefab works. Piece colliders are disabled; the tile root's flat collider still does picking. Cliffs are children of the tile root, so the wrap copies carry them.
+
+**Alternatives considered:**
+
+- *Lake level = lowest own tile level.* Rejected: banks higher than the water by several levels read as a pit, and the surface would not match where water actually spills.
+- *One cliff per tile, stretched to the full gap.* Rejected: tall gaps would stretch the dirt texture several-fold. The user asked for stacked tiles.
+- *Cliffs under every raised tile down to sea level.* Rejected: most of them would be buried inside neighbors. Stopping at the lowest neighbor builds only what can be seen.
+
+**Consequences:**
+
+- Seeds whose worlds contain lakes now produce different `ElevationLevel` values on lake tiles than before. Land, sea, and rivers are unchanged.
+- More GameObjects per world (one per cliff piece, times three with the wrap copies). Fine at demo sizes; chunked or instanced rendering remains the answer for large maps.

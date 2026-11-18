@@ -115,7 +115,7 @@ namespace HexWorldStudio.Tests
             try
             {
                 HexTile lake = NewTile(water, level: 4, isLake: true);
-                float y = WorldRenderer.ComputeTileY(lake, oceanY: 0f, coastRise: 0.05f,
+                float y = WorldRenderer.ComputeTileY(lake, oceanY: 0f,
                                                      landRise: 0.15f, elevationStep: 0.15f);
 
                 Assert.That(y, Is.EqualTo(0f + 0.15f + 4 * 0.15f).Within(1e-5f),
@@ -143,9 +143,9 @@ namespace HexWorldStudio.Tests
                 HexTile coastTile = NewTile(coast, level: 0, isLake: false);
                 HexTile oceanTile = NewTile(ocean, level: 0, isLake: false);
 
-                Assert.That(WorldRenderer.ComputeTileY(coastTile, 0f, 0.05f, 0.15f, 0.15f),
-                    Is.EqualTo(0.05f).Within(1e-5f), "Coast height regressed.");
-                Assert.That(WorldRenderer.ComputeTileY(oceanTile, 0f, 0.05f, 0.15f, 0.15f),
+                Assert.That(WorldRenderer.ComputeTileY(coastTile, 0f, 0.15f, 0.15f),
+                    Is.EqualTo(0f).Within(1e-5f), "Coast must sit at sea level.");
+                Assert.That(WorldRenderer.ComputeTileY(oceanTile, 0f, 0.15f, 0.15f),
                     Is.EqualTo(0f).Within(1e-5f), "Ocean height regressed.");
             }
             finally

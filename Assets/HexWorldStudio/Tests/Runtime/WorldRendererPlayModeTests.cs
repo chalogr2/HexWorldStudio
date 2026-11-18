@@ -90,7 +90,7 @@ namespace HexWorldStudio.Tests.Runtime
 
         private static float ExpectedTileY(WorldRenderer renderer, HexTile tile) =>
             WorldRenderer.ComputeTileY(tile,
-                renderer.OceanRenderHeight, renderer.CoastRiseAboveOcean,
+                renderer.OceanRenderHeight,
                 renderer.LandRiseAboveWater, renderer.ElevationStep);
 
         [UnityTest]
