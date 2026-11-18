@@ -159,8 +159,8 @@ Elevation, climate, hydrology, biome, and resource stages each get the same "plu
 - [x] LICENSE finalized as all rights reserved (MIT expected later, owner's call)
 - [x] Runtime regenerate overlay in the QuickStart scene (Slice 18)
 - [x] Test suite green (469 / 469)
-- [ ] Screenshots / GIF in the README
-- [ ] Windows standalone build of the QuickStart scene (owner is doing this)
+- [x] Screenshots in the README (`docs/images/`, rendered by `Assets/DevTools/Editor/ExhibitionCapture`)
+- [x] Windows standalone build of the QuickStart scene, published as the `v1.0-mvp` GitHub Release (zip, Burst debug folder excluded)
 - [ ] Make the GitHub repo public (owner's call, later)
 - [-] Asset Store listing copy, hero image, icon, landing-page mock (descoped, ADR-0026)
 - [-] Asset Store demo video (descoped; a short capture for the exhibition may still happen)
