@@ -9,9 +9,9 @@ namespace HexWorldStudio.Examples.QuickStart
     /// <summary>
     /// Selection layer for the demo scene. On <see cref="ICameraInput.PrimaryClickPressed"/>
     /// it commits the current <see cref="TileHover"/>'s coord as the
-    /// selected tile and parks a <see cref="HexOutline"/> at that
-    /// tile's world position. On <see cref="ICameraInput.SecondaryClickPressed"/>
-    /// it clears the selection. The selection also clears when the
+    /// selected tile and tints that tile with a <see cref="TileHighlight"/>.
+    /// On <see cref="ICameraInput.SecondaryClickPressed"/> it clears the
+    /// selection. The selection also clears when the
     /// world regenerates (the new world has different tiles, so a
     /// stale coord may point at unrelated data).
     /// </summary>
@@ -30,13 +30,15 @@ namespace HexWorldStudio.Examples.QuickStart
         [Tooltip("MonoBehaviour implementing ICameraInput. If null, searches the GameObject for one.")]
         [SerializeField] private MonoBehaviour _inputSource;
 
-        [Header("Outline visual")]
-        [SerializeField] private Color _outlineColor = new Color(1f, 0.78f, 0.30f, 1f);
-        [Range(0.01f, 0.5f)]
-        [SerializeField] private float _outlineWidth = 0.08f;
+        [Header("Highlight visual")]
+        [Tooltip("Tint laid over the selected tile. Keep alpha low; it is a wash, not a fill.")]
+        [SerializeField] private Color _highlightColor = new Color(1f, 0.78f, 0.30f, 0.35f);
+
+        [Tooltip("Content/Highlight/TileHighlight.mat. Referencing it here makes sure the shader ships in builds.")]
+        [SerializeField] private Material _highlightMaterial;
 
         private ICameraInput _input;
-        private GameObject _outline;
+        private TileHighlight _highlight;
         private HexCoord? _selectedCoord;
         private bool _subscribedToBootstrap;
 
@@ -48,14 +50,12 @@ namespace HexWorldStudio.Examples.QuickStart
 
         private void Awake()
         {
-            _outline = HexOutline.Create("SelectionOutline", _outlineColor, _outlineWidth);
-            _outline.transform.SetParent(transform, worldPositionStays: false);
-            SetOutlineVisible(false);
+            _highlight = new TileHighlight("SelectionHighlight", _highlightColor, _highlightMaterial, transform);
         }
 
         private void OnDestroy()
         {
-            if (_outline != null) UnityEngine.Object.Destroy(_outline);
+            _highlight?.Dispose();
             if (_bootstrap != null) _bootstrap.OnRegenerated -= ClearSelectionOnRegenerate;
         }
 
@@ -84,7 +84,7 @@ namespace HexWorldStudio.Examples.QuickStart
 
             if (_input.PrimaryClickPressed && _hover != null && _hover.HoveredCoord.HasValue)
             {
-                CommitSelection(_hover.HoveredCoord.Value, _hover.HoveredWorldPosition);
+                CommitSelection(_hover.HoveredCoord.Value, _hover.HoveredTileObject);
             }
         }
 
@@ -121,12 +121,11 @@ namespace HexWorldStudio.Examples.QuickStart
             ClearSelection();
         }
 
-        private void CommitSelection(HexCoord coord, Vector3 worldPosition)
+        private void CommitSelection(HexCoord coord, GameObject tileObject)
         {
             bool changed = !_selectedCoord.HasValue || !_selectedCoord.Value.Equals(coord);
             _selectedCoord = coord;
-            if (_outline != null) _outline.transform.position = worldPosition;
-            SetOutlineVisible(true);
+            _highlight?.Show(tileObject);
             if (changed) OnSelectionChanged?.Invoke(_selectedCoord);
         }
 
@@ -134,16 +133,8 @@ namespace HexWorldStudio.Examples.QuickStart
         {
             bool changed = _selectedCoord.HasValue;
             _selectedCoord = null;
-            SetOutlineVisible(false);
+            _highlight?.Hide();
             if (changed) OnSelectionChanged?.Invoke(null);
-        }
-
-        private void SetOutlineVisible(bool visible)
-        {
-            if (_outline != null && _outline.activeSelf != visible)
-            {
-                _outline.SetActive(visible);
-            }
         }
     }
 }

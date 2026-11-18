@@ -932,3 +932,29 @@ Play-testing the exhibition build showed two visual faults. (1) Water inside one
 
 - Seeds whose worlds contain lakes now produce different `ElevationLevel` values on lake tiles than before. Land, sea, and rivers are unchanged.
 - More GameObjects per world (one per cliff piece, times three with the wrap copies). Fine at demo sizes; chunked or instanced rendering remains the answer for large maps.
+
+---
+
+## ADR-0028 — Hover and selection tint the whole tile instead of outlining it
+
+**Date:** 2026-11-18
+**Status:** Accepted
+**Supersedes:** the visual half of ADR-0016 (the `LineRenderer` hex outline for hover and selection). `HexTileBinding` picking is unchanged, and `HexOutline` stays as a public helper; the demo just no longer uses it.
+
+**Context:**
+
+The outlines were drawn 0.05 above the tile root, but Kenney tile tops sit about 0.34 above it and features (trees, mountains) higher still, so the rings were mostly buried inside the tile and barely visible.
+
+**Decision:**
+
+New public `Runtime/Rendering/TileHighlight`: on `Show(tileRoot)` it copies every enabled `MeshFilter` + `MeshRenderer` under the tile root (skipping `"Cliff"` pieces) into its own container at the same world pose, with a translucent unlit material. The shader `Content/Highlight/TileHighlight.shader` ("Hex World Studio/Tile Highlight") is flat color, alpha blended, `ZWrite Off`, `ZTest LEqual`, `Offset -1,-1`, so only visible surfaces are tinted and nothing z-fights. Hover uses white at alpha 0.3 and selection uses amber at alpha 0.35, both set in the inspector. `TileHover` exposes `HoveredTileObject` (the canonical tile or the wrap copy actually hit) so selection tints the same object. The material asset is referenced from the scene components so the shader ships in builds.
+
+**Alternatives considered:**
+
+- *Tint the tile's own renderers via MaterialPropertyBlock.* Rejected: URP/Lit multiplies `_BaseColor` into the texture, so it can darken but not wash toward white, and emission needs per-material keywords the Kenney materials do not have.
+- *A flat translucent hex disc at the tile top.* Rejected: trees and mountains would poke through it untinted, and each prefab has a different top height.
+
+**Consequences:**
+
+- A ground-plane fallback hit (no collider hit) highlights nothing, because there is no tile object to copy. In practice every tile has a collider, so this does not happen in the demo.
+- The copies are rebuilt only when the hovered tile changes, so the per-frame cost is nothing while the cursor stays on one tile.

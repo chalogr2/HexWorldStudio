@@ -11,7 +11,7 @@ namespace HexWorldStudio.Examples.QuickStart
     /// Hover detection for the demo scene: every frame casts a ray
     /// from the camera through the mouse cursor, resolves the tile
     /// under the cursor via <see cref="HexTileBinding"/> on the
-    /// raycast hit, and positions a <see cref="HexOutline"/> overlay
+    /// raycast hit, and lays a translucent <see cref="TileHighlight"/> wash
     /// at the hovered tile (ADR-0016).
     /// </summary>
     /// <remarks>
@@ -36,13 +36,15 @@ namespace HexWorldStudio.Examples.QuickStart
         [Tooltip("MonoBehaviour implementing ICameraInput. If null, searches the GameObject for one on Awake.")]
         [SerializeField] private MonoBehaviour _inputSource;
 
-        [Header("Outline visual")]
-        [SerializeField] private Color _outlineColor = new Color(1f, 1f, 1f, 1f);
-        [Range(0.01f, 0.5f)]
-        [SerializeField] private float _outlineWidth = 0.05f;
+        [Header("Highlight visual")]
+        [Tooltip("Tint laid over the hovered tile. Keep alpha low; it is a wash, not a fill.")]
+        [SerializeField] private Color _highlightColor = new Color(1f, 1f, 1f, 0.3f);
+
+        [Tooltip("Content/Highlight/TileHighlight.mat. Referencing it here makes sure the shader ships in builds.")]
+        [SerializeField] private Material _highlightMaterial;
 
         private ICameraInput _input;
-        private GameObject _outline;
+        private TileHighlight _highlight;
 
         private HexCoord? _hoveredCoord;
         private float _hoverStartTime;
@@ -66,14 +68,19 @@ namespace HexWorldStudio.Examples.QuickStart
         /// </summary>
         public Vector3 HoveredWorldPosition { get; private set; }
 
+        /// <summary>
+        /// The tile GameObject under the cursor (canonical tile or wrap
+        /// copy, whichever was hit), or null when nothing is hovered or
+        /// the tile was resolved by the ground-plane fallback.
+        /// </summary>
+        public GameObject HoveredTileObject { get; private set; }
+
         /// <summary>Fires when the hovered coord changes (including transitions to / from null).</summary>
         public event Action<HexCoord?> OnHoverChanged;
 
         private void Awake()
         {
-            _outline = HexOutline.Create("HoverOutline", _outlineColor, _outlineWidth);
-            _outline.transform.SetParent(transform, worldPositionStays: false);
-            SetOutlineVisible(false);
+            _highlight = new TileHighlight("HoverHighlight", _highlightColor, _highlightMaterial, transform);
         }
 
         private void Update()
@@ -98,13 +105,13 @@ namespace HexWorldStudio.Examples.QuickStart
             if (_input == null || _camera == null) { ClearHover(); return; }
             if (!_input.IsMouseInWindow) { ClearHover(); return; }
 
-            HexCoord? newCoord = PickHoveredCoord(out Vector3 hitWorldPos);
-            ApplyHover(newCoord, hitWorldPos);
+            HexCoord? newCoord = PickHoveredCoord(out Vector3 hitWorldPos, out GameObject hitTile);
+            ApplyHover(newCoord, hitWorldPos, hitTile);
         }
 
         private void OnDestroy()
         {
-            if (_outline != null) UnityEngine.Object.Destroy(_outline);
+            _highlight?.Dispose();
         }
 
         private void ResolveInput()
@@ -131,9 +138,10 @@ namespace HexWorldStudio.Examples.QuickStart
         // Returns the canonical coord under the cursor + the world
         // position to anchor the outline at. Returns (null, default)
         // when nothing is hovered (off-map, math fallback also misses).
-        private HexCoord? PickHoveredCoord(out Vector3 hitWorldPos)
+        private HexCoord? PickHoveredCoord(out Vector3 hitWorldPos, out GameObject hitTile)
         {
             hitWorldPos = default;
+            hitTile = null;
 
             Ray ray = _camera.ScreenPointToRay(_input.MousePosition);
 
@@ -148,6 +156,7 @@ namespace HexWorldStudio.Examples.QuickStart
                 if (binding != null)
                 {
                     hitWorldPos = binding.transform.position;
+                    hitTile = binding.gameObject;
                     return binding.Coord;
                 }
             }
@@ -184,7 +193,7 @@ namespace HexWorldStudio.Examples.QuickStart
             return true;
         }
 
-        private void ApplyHover(HexCoord? newCoord, Vector3 hitWorldPos)
+        private void ApplyHover(HexCoord? newCoord, Vector3 hitWorldPos, GameObject hitTile)
         {
             bool changed = !NullableCoordEquals(newCoord, _hoveredCoord);
             if (changed)
@@ -197,13 +206,15 @@ namespace HexWorldStudio.Examples.QuickStart
             if (newCoord.HasValue)
             {
                 HoveredWorldPosition = hitWorldPos;
-                if (_outline != null) _outline.transform.position = hitWorldPos;
-                SetOutlineVisible(true);
+                HoveredTileObject = hitTile;
+                // Ground-plane fallback hits have no tile object to tint.
+                _highlight?.Show(hitTile);
             }
             else
             {
                 HoveredWorldPosition = Vector3.zero;
-                SetOutlineVisible(false);
+                HoveredTileObject = null;
+                _highlight?.Hide();
             }
         }
 
@@ -214,17 +225,10 @@ namespace HexWorldStudio.Examples.QuickStart
                 _hoveredCoord = null;
                 _hoverStartTime = 0f;
                 HoveredWorldPosition = Vector3.zero;
+                HoveredTileObject = null;
                 OnHoverChanged?.Invoke(null);
             }
-            SetOutlineVisible(false);
-        }
-
-        private void SetOutlineVisible(bool visible)
-        {
-            if (_outline != null && _outline.activeSelf != visible)
-            {
-                _outline.SetActive(visible);
-            }
+            _highlight?.Hide();
         }
 
         private static bool NullableCoordEquals(HexCoord? a, HexCoord? b)

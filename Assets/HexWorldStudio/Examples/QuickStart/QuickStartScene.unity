@@ -641,8 +641,8 @@ MonoBehaviour:
   _wrapRenderer: {fileID: 1500000004}
   _bootstrap: {fileID: 1500000003}
   _inputSource: {fileID: 330585550}
-  _outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  _outlineWidth: 0.05
+  _highlightColor: {r: 1, g: 1, b: 1, a: 0.3}
+  _highlightMaterial: {fileID: 2100000, guid: ccd6eea89a3343d1bda3a028ee6804e6, type: 2}
 --- !u!114 &2000000003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -658,8 +658,8 @@ MonoBehaviour:
   _hover: {fileID: 2000000002}
   _bootstrap: {fileID: 1500000003}
   _inputSource: {fileID: 330585550}
-  _outlineColor: {r: 1, g: 0.78, b: 0.3, a: 1}
-  _outlineWidth: 0.08
+  _highlightColor: {r: 1, g: 0.78, b: 0.3, a: 0.35}
+  _highlightMaterial: {fileID: 2100000, guid: ccd6eea89a3343d1bda3a028ee6804e6, type: 2}
 --- !u!1 &2100000000
 GameObject:
   m_ObjectHideFlags: 0
