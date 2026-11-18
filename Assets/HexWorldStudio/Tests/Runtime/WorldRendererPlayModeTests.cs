@@ -88,6 +88,11 @@ namespace HexWorldStudio.Tests.Runtime
             }
         }
 
+        private static float ExpectedTileY(WorldRenderer renderer, HexTile tile) =>
+            WorldRenderer.ComputeTileY(tile,
+                renderer.OceanRenderHeight, renderer.CoastRiseAboveOcean,
+                renderer.LandRiseAboveWater, renderer.ElevationStep);
+
         [UnityTest]
         public IEnumerator Render_TileWorldPositions_MatchHexLayout()
         {
@@ -116,7 +121,10 @@ namespace HexWorldStudio.Tests.Runtime
                     Transform child = FindChildByCoord(host.transform, col, row);
                     Assert.That(child, Is.Not.Null, $"Child for ({col}, {row}) not found.");
                     Assert.That(child.localPosition.x, Is.EqualTo(expected.x).Within(1e-4f));
-                    Assert.That(child.localPosition.y, Is.EqualTo(expected.y).Within(1e-4f));
+                    // Y follows the stepped water/land baseline (Slice 11.2),
+                    // not the raw ElevationLevel * step HexMesh assumes.
+                    float expectedY = ExpectedTileY(renderer, tile);
+                    Assert.That(child.localPosition.y, Is.EqualTo(expectedY).Within(1e-4f));
                     Assert.That(child.localPosition.z, Is.EqualTo(expected.z).Within(1e-4f));
                 }
             }
@@ -144,7 +152,7 @@ namespace HexWorldStudio.Tests.Runtime
                 {
                     (int col, int row) = tile.Coord.ToOffsetOddR();
                     Transform child = FindChildByCoord(host.transform, col, row);
-                    float expectedY = tile.ElevationLevel * 0.15f;
+                    float expectedY = ExpectedTileY(renderer, tile);
                     Assert.That(child.localPosition.y, Is.EqualTo(expectedY).Within(1e-4f),
                         $"Tile ({col}, {row}) level={tile.ElevationLevel} produced Y={child.localPosition.y}.");
                 }

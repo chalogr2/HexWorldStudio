@@ -60,17 +60,22 @@ namespace HexWorldStudio.Tests
         [Test]
         public void Canonicalize_WrapCrossingEdge_TwoNamingsCollapseToSameForm()
         {
-            // Edge between (0, 3) and (Width-1, 3) via cylindrical
-            // wrap. Naming (0, 3, West) references raw (-1, 3) which
-            // normalizes to (Width-1, 3). Naming (Width-1, 3, East)
-            // references raw (Width, 3) which normalizes to (0, 3).
-            // Both must canonicalize to the same value; lex-smaller
-            // owner is (0, 3).
-            var a = RiverEdge.Canonicalize(new HexCoord(0, 3), HexDirection.West, Width);
-            var b = RiverEdge.Canonicalize(new HexCoord(Width - 1, 3), HexDirection.East, Width);
+            // Edge between offset columns 0 and Width-1 on row 3, which
+            // are neighbours through the cylindrical wrap. Build the tiles
+            // from offset coordinates: on odd-r rows the axial Q of
+            // column 0 is not 0 (row 3 column 0 is axial (-1, 3)), so
+            // writing raw axial values here would name a tile that is
+            // not on the map at all.
+            HexCoord west = HexCoordExtensions.FromOffsetOddR(0, 3);
+            HexCoord east = HexCoordExtensions.FromOffsetOddR(Width - 1, 3);
+
+            var a = RiverEdge.Canonicalize(west, HexDirection.West, Width);
+            var b = RiverEdge.Canonicalize(east, HexDirection.East, Width);
 
             Assert.That(a, Is.EqualTo(b));
-            Assert.That(a.Coord, Is.EqualTo(new HexCoord(0, 3)));
+            // Lex-smaller owner is the column-0 tile (axial Q -1 beats
+            // Width-2), and from its side the shared edge points West.
+            Assert.That(a.Coord, Is.EqualTo(west));
             Assert.That(a.Direction, Is.EqualTo(HexDirection.West));
         }
 

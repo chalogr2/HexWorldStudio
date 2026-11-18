@@ -83,7 +83,11 @@ namespace HexWorldStudio.Tests
             }
             Assert.That(matched, Is.True,
                 "A corner on the wrap seam must be reachable from the tile on the far side of the seam.");
-            Assert.That(fromWest.Coord.Q, Is.GreaterThanOrEqualTo(0),
+            // Normalized means the offset column is in [0, width). The
+            // axial Q can still be negative on lower rows (offset column
+            // 0, row 4 is axial Q = -2), so compare against Normalize
+            // instead of checking the sign of Q.
+            Assert.That(fromWest.Coord, Is.EqualTo(CoordinateSpace.Normalize(fromWest.Coord, MapWidth)),
                 "Canonical corners must carry a normalized tile coordinate.");
         }
 
