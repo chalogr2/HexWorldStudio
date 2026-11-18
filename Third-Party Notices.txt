@@ -1,9 +1,9 @@
 Third-Party Notices
 ===================
 
-Hex World Studio includes content derived from the following third-party
-works. Each entry lists the original work, its author, its license, and the
-nature of any modifications made for inclusion in Hex World Studio.
+Hex World Studio includes the following third-party works. Each entry
+lists the original work, its author, its license, where it lives in the
+repository, and any changes made to it.
 
 When adding a new third-party item to the repository, append a new entry
 to this file following the same template.
@@ -17,16 +17,52 @@ to this file following the same template.
    Original source:  https://kenney.nl/assets/hexagon-kit
    License:          Creative Commons Zero v1.0 Universal (CC0 1.0)
                      https://creativecommons.org/publicdomain/zero/1.0/
-   Modifications:    Selected hex tile and prop models have been modified
-                     and extended in Asset Forge for use in the Hex World
-                     Studio demo scenes. Modified models, along with any
-                     original Hex World Studio additions built alongside
-                     them, ship inside Assets/HexWorldStudio/ThirdParty/
-                     once authored.
+   Location:         Assets/HexWorldStudio/ThirdParty/Kenney Hexagon/
+   Modifications:    Models are included as downloaded (FBX, GLB and OBJ
+                     formats, shared textures, preview images). The
+                     Materials/ folder holds URP materials made for this
+                     project and applied to the kit's meshes. Tile and
+                     feature prefabs under
+                     Assets/HexWorldStudio/Content/Prefabs/ are built from
+                     these models.
 
-   Although CC0 imposes no attribution requirement, Hex World Studio
-   credits Kenney as a courtesy and to make provenance clear to anyone
-   reusing or auditing the assets.
+----------------------------------------------------------------------
+
+2. Kenney Cube Pets
+   ----------------
+   Author:           Kenney (https://kenney.nl)
+   Original work:    Cube Pets
+   Original source:  https://kenney.nl/assets/cube-pets
+   License:          Creative Commons Zero v1.0 Universal (CC0 1.0)
+                     https://creativecommons.org/publicdomain/zero/1.0/
+   Location:         Assets/HexWorldStudio/ThirdParty/Kenney Animals/
+   Modifications:    None. Included as downloaded (FBX, GLB and OBJ
+                     formats, textures, preview images). Some models
+                     stand in for resource markers (Cattle, Fish, Furs,
+                     Horses) through prefabs in
+                     Assets/HexWorldStudio/Content/Prefabs/Resources/.
+
+----------------------------------------------------------------------
+
+3. Kenney Food Kit
+   ---------------
+   Author:           Kenney (https://kenney.nl)
+   Original work:    Food Kit
+   Original source:  https://kenney.nl/assets/food-kit
+   License:          Creative Commons Zero v1.0 Universal (CC0 1.0)
+                     https://creativecommons.org/publicdomain/zero/1.0/
+   Location:         Assets/HexWorldStudio/ThirdParty/Kenney Food/
+   Modifications:    None. Included as downloaded (FBX, GLB and OBJ
+                     formats, textures, preview images). Some models
+                     stand in for resource markers (Bananas, Corn, Spices,
+                     Wheat, Iron) through prefabs in
+                     Assets/HexWorldStudio/Content/Prefabs/Resources/.
+
+----------------------------------------------------------------------
+
+CC0 does not require attribution. Kenney is credited here anyway, as a
+courtesy and so anyone reusing or auditing the models knows where they
+came from.
 
 ----------------------------------------------------------------------
 
