@@ -51,8 +51,17 @@ namespace HexWorldStudio.Input
         /// </summary>
         public ICameraInput Installed { get; private set; }
 
-        private void Awake()
+        private void Awake() => Install();
+
+        // Awake does not run when a component is added in Edit mode
+        // (EditMode tests, editor tooling), so the install logic lives
+        // here where tests can call it directly. Safe to call more than
+        // once: after the first run it returns the provider it already
+        // found or added.
+        internal void Install()
         {
+            if (Installed != null) return;
+
             // If a provider is already present (e.g. wired manually for a buyer override), don't replace it.
             ICameraInput existing = GetComponent<ICameraInput>();
             if (existing != null)

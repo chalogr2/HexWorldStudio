@@ -31,6 +31,11 @@ namespace HexWorldStudio.Tests
             base.Setup();
             _keyboard = InputSystem.AddDevice<Keyboard>();
             _mouse = InputSystem.AddDevice<Mouse>();
+            // A fresh virtual mouse sits at (0, 0), the bottom-left
+            // corner, which edge scroll correctly reads as "pan down-left".
+            // Park it mid-screen so the keyboard assertions see only the
+            // keys they press.
+            Set(_mouse.position, new Vector2(Screen.width * 0.5f, Screen.height * 0.5f));
             _go = new GameObject("InputSystemInputProviderTest");
             _provider = _go.AddComponent<InputSystemInputProvider>();
         }

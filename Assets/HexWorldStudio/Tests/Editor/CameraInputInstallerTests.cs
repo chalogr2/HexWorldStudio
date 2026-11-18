@@ -19,6 +19,8 @@ namespace HexWorldStudio.Tests
             try
             {
                 CameraInputInstaller installer = go.AddComponent<CameraInputInstaller>();
+                // Awake does not fire for AddComponent in Edit mode.
+                installer.Install();
 
 #if ENABLE_INPUT_SYSTEM
                 Assert.That(installer.Installed, Is.Not.Null,
@@ -52,6 +54,8 @@ namespace HexWorldStudio.Tests
                 // LegacyUnityInputProvider compiles under any input mode (its body is just stubbed when ENABLE_LEGACY_INPUT_MANAGER isn't defined), so it's a safe stand-in for a buyer-supplied provider in this assertion.
                 LegacyUnityInputProvider existing = go.AddComponent<LegacyUnityInputProvider>();
                 CameraInputInstaller installer = go.AddComponent<CameraInputInstaller>();
+                // Awake does not fire for AddComponent in Edit mode.
+                installer.Install();
 
                 Assert.That(installer.Installed, Is.SameAs(existing),
                     "Installer must surface the pre-existing provider via Installed rather than adding a sibling.");

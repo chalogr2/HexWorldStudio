@@ -119,6 +119,7 @@ namespace HexWorldStudio.Input
         {
             get
             {
+                if (Pointer.current == null) return false;
                 Vector2 m = MousePosition;
                 return m.x >= 0f && m.y >= 0f && m.x <= Screen.width && m.y <= Screen.height;
             }
@@ -175,6 +176,13 @@ namespace HexWorldStudio.Input
 
         private Vector2 ComputeEdgeScroll()
         {
+            // With no pointer device MousePosition falls back to (0, 0),
+            // which reads as the bottom-left corner and would pan the
+            // camera diagonally forever. Same for a zero-size screen
+            // (batch mode, minimized window).
+            if (Pointer.current == null) return Vector2.zero;
+            if (Screen.width <= 0 || Screen.height <= 0) return Vector2.zero;
+
             Vector2 m = MousePosition;
             if (m.x < 0 || m.y < 0 || m.x > Screen.width || m.y > Screen.height) return Vector2.zero;
 
