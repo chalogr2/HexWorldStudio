@@ -8,7 +8,15 @@ I built this as a code-first Unity tool, not as a game. The generator only produ
 
 ## Try it
 
-**[Download the Windows build](https://github.com/chalogr2/Hex-Tile-World-Generator/releases/latest)**, unzip it anywhere and run `Hex Tile World Generator.exe`. Nothing to install.
+There's a ready to play Windows build, so you don't need Unity to try it. You need a 64-bit Windows PC.
+
+1. Go to the **[latest release](https://github.com/chalogr2/Hex-Tile-World-Generator/releases/latest)**. You can also get there from the repo's main page: click **Releases** in the right-hand sidebar.
+2. Under **Assets**, download `HexWorldStudio-v1.0-mvp-Windows.zip` (about 36 MB).
+3. Right-click the zip and choose **Extract All**. Don't run it from inside the zip, Windows won't find the files it needs next to the exe.
+4. Open the extracted folder and double-click `Hex Tile World Generator.exe`.
+5. Windows may show a blue "Windows protected your PC" box, because the exe isn't signed. Click **More info**, then **Run anyway**.
+
+Nothing gets installed. To remove it, just delete the folder.
 
 A world is generated as soon as it starts. The panel in the top left corner lets you make more:
 
