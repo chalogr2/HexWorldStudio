@@ -23,7 +23,9 @@ namespace HexWorldStudio.Examples.QuickStart
     /// </para>
     /// <para>
     /// Keys: Space or N builds a new random world, H hides or shows the
-    /// panel. Hotkeys are ignored while the seed field has focus.
+    /// panel, Esc quits (stops Play mode in the editor). Hotkeys are
+    /// ignored while the seed field has focus; there, Esc just leaves the
+    /// field so typing a seed can never quit by accident.
     /// </para>
     /// </remarks>
     [DisallowMultipleComponent]
@@ -50,6 +52,9 @@ namespace HexWorldStudio.Examples.QuickStart
 
         [Tooltip("Show the panel when the scene starts. H toggles it either way.")]
         [SerializeField] private bool _visibleOnStart = true;
+
+        [Tooltip("Quit the application when Esc is pressed (stops Play mode in the editor). Turn off if the host game owns Esc.")]
+        [SerializeField] private bool _escapeQuits = true;
 
         [Tooltip("Panel scale. 0 picks one from the screen height so it stays readable on large displays.")]
         [Min(0f)]
@@ -127,6 +132,12 @@ namespace HexWorldStudio.Examples.QuickStart
                     BuildTypedSeed(bootstrap);
                     e.Use();
                 }
+                else if (e.keyCode == KeyCode.Escape)
+                {
+                    GUIUtility.keyboardControl = 0;
+                    _seedText = bootstrap.Seed.ToString();
+                    e.Use();
+                }
                 return;
             }
 
@@ -141,7 +152,21 @@ namespace HexWorldStudio.Examples.QuickStart
                     _visible = !_visible;
                     e.Use();
                     break;
+                case KeyCode.Escape:
+                    if (!_escapeQuits) break;
+                    e.Use();
+                    Quit();
+                    break;
             }
+        }
+
+        private static void Quit()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void DrawPanel(WorldGeneratorBootstrap bootstrap)
@@ -175,6 +200,7 @@ namespace HexWorldStudio.Examples.QuickStart
 
             GUILayout.Space(4f);
             GUILayout.Label("H hides this panel");
+            if (_escapeQuits) GUILayout.Label("Esc quits");
         }
 
         private void DrawMapTypeRow(WorldGeneratorBootstrap bootstrap)

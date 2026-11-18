@@ -21,6 +21,7 @@ A world gets generated as soon as the scene starts. The panel in the top left le
 | **Map** `<` `>` | Switch map type (Continents, Pangaea, Archipelago, Fractal, Inland Sea, Lakes) on the same seed |
 | **Land** `-` `+` | More or less land, same seed |
 | **H** | Hide or show the panel |
+| **Esc** | Quit |
 
 Getting around the map:
 
