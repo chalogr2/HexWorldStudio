@@ -42,9 +42,18 @@ Getting around:
 
 The map wraps east to west like a globe, so if you keep panning sideways you'll end up back where you started.
 
-| Archipelago | Pangaea | Up close |
-|---|---|---|
-| ![Archipelago map type](docs/images/archipelago.png) | ![Pangaea map type](docs/images/pangaea.png) | ![Close view of a coastline](docs/images/closeup.png) |
+<table>
+  <tr>
+    <th>Archipelago</th>
+    <th>Pangaea</th>
+    <th>Up close</th>
+  </tr>
+  <tr>
+    <td><img src="docs/images/archipelago.png" alt="Archipelago map type" width="270"></td>
+    <td><img src="docs/images/pangaea.png" alt="Pangaea map type" width="270"></td>
+    <td><img src="docs/images/closeup.png" alt="Close view of a coastline" width="270"></td>
+  </tr>
+</table>
 
 ## How a world gets made
 
